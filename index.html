@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>PRISM — Comunidad USMP Arequipa</title>
+  <meta name="description" content="PRISM: comunidad universitaria de la USMP Filial Sur Arequipa. Conecta, participa y organiza actividades con estudiantes." />
+  <meta name="theme-color" content="#f7f4f5" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="PRISM" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <section id="auth-screen" class="auth-screen" aria-label="Acceso a PRISM">
+    <div class="auth-decoration auth-decoration-one"></div>
+    <div class="auth-decoration auth-decoration-two"></div>
+    <div class="auth-layout">
+      <div class="auth-intro">
+        <div class="brand-mark brand-mark-large">
+          <img src="./assets/usmp-logo.png" alt="USMP" />
+          <span>PRISM</span>
+        </div>
+        <p class="eyebrow">USMP · FILIAL SUR · AREQUIPA</p>
+        <h1>Tu campus, <em>más cerca.</em></h1>
+        <p class="auth-intro-copy">Un espacio para compartir lo que haces, encontrar a tu grupo y convertir ideas en planes con la comunidad.</p>
+        <div class="intro-points">
+          <span>✓ Publica y responde</span>
+          <span>✓ Organiza actividades</span>
+          <span>✓ Conecta con tu carrera</span>
+        </div>
+      </div>
+
+      <div class="auth-card">
+        <div class="auth-card-head">
+          <p class="eyebrow">Comunidad universitaria</p>
+          <h2 id="auth-title">Qué gusto verte</h2>
+          <p id="auth-subtitle" class="muted">Inicia sesión para entrar a PRISM.</p>
+        </div>
+
+        <div class="auth-tabs" role="tablist" aria-label="Acceso a la cuenta">
+          <button class="auth-tab is-active" type="button" data-auth-tab="login" role="tab" aria-selected="true">Entrar</button>
+          <button class="auth-tab" type="button" data-auth-tab="register" role="tab" aria-selected="false">Crear cuenta</button>
+        </div>
+
+        <form id="login-form" class="auth-form" novalidate>
+          <label for="login-email">Correo electrónico</label>
+          <input id="login-email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="tu.correo@ejemplo.com" required />
+          <label for="login-password">Contraseña</label>
+          <input id="login-password" name="password" type="password" autocomplete="current-password" placeholder="Tu contraseña" maxlength="128" required />
+          <button class="primary-button full-width" type="submit">Entrar a mi cuenta <span>→</span></button>
+        </form>
+
+        <form id="register-form" class="auth-form" hidden novalidate>
+          <label for="register-name">Nombre para mostrar</label>
+          <input id="register-name" name="name" type="text" autocomplete="name" placeholder="Ej. Ana Paredes" maxlength="80" required />
+          <label for="register-email">Correo electrónico</label>
+          <input id="register-email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="tu.correo@ejemplo.com" required />
+          <label for="register-career">Carrera <span class="optional">opcional</span></label>
+          <input id="register-career" name="career" type="text" autocomplete="organization-title" placeholder="Ej. Ingeniería de Sistemas" maxlength="100" />
+          <label for="register-password">Contraseña</label>
+          <input id="register-password" name="password" type="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres" minlength="8" maxlength="128" required />
+          <label for="register-confirm">Repite la contraseña</label>
+          <input id="register-confirm" name="confirmPassword" type="password" autocomplete="new-password" placeholder="Repite tu contraseña" minlength="8" maxlength="128" required />
+          <button class="primary-button full-width" type="submit">Crear mi cuenta <span>→</span></button>
+        </form>
+
+        <div id="auth-feedback" class="form-feedback" role="alert" hidden></div>
+        <p class="auth-note">Por ahora puedes registrar cualquier correo. La validación exclusiva de correos USMP llegará en una próxima actualización.</p>
+      </div>
+    </div>
+  </section>
+
+  <div id="app-shell" class="app-shell" hidden>
+    <aside class="sidebar" aria-label="Navegación principal">
+      <div class="sidebar-brand">
+        <a class="brand-mark" href="#/inicio" aria-label="Ir al inicio">
+          <img src="./assets/usmp-logo.png" alt="USMP" />
+          <span>PRISM</span>
+        </a>
+        <p>Comunidad USMP Arequipa</p>
+      </div>
+
+      <nav class="sidebar-nav">
+        <p class="nav-label">Explorar</p>
+        <button class="nav-item is-active" type="button" data-route="inicio">
+          <span class="nav-icon">⌂</span><span>Inicio</span>
+        </button>
+        <button class="nav-item" type="button" data-route="chat">
+          <span class="nav-icon">💬</span><span>Chat Campus</span>
+        </button>
+        <button class="nav-item" type="button" data-route="buscar">
+          <span class="nav-icon">⌕</span><span>Buscar</span>
+        </button>
+        <button class="nav-item" type="button" data-route="asistente">
+          <span class="nav-icon">✦</span><span>Asistente IA</span>
+        </button>
+        <button class="nav-item" type="button" data-route="contacto">
+          <span class="nav-icon">✉</span><span>Contacto</span>
+        </button>
+        <button id="nav-admin" class="nav-item" type="button" data-route="admin" hidden>
+          <span class="nav-icon">⚙</span><span>Administración</span>
+        </button>
+        <button class="nav-item" type="button" data-route="perfil">
+          <span class="nav-icon">◎</span><span>Perfil</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="campus-mini">
+          <span class="status-dot"></span>
+          <div><strong>Filial Sur</strong><small>Arequipa, Perú</small></div>
+        </div>
+
+        <div class="sidebar-user">
+          <div id="sidebar-avatar" class="avatar avatar-small">P</div>
+          <div class="sidebar-user-copy"><strong id="sidebar-name">Estudiante</strong><small id="sidebar-career">USMP</small></div>
+          <button class="icon-button" type="button" data-action="logout" title="Cerrar sesión" aria-label="Cerrar sesión">↪</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <a class="mobile-brand" href="#/inicio" aria-label="Ir al inicio">
+          <img src="./assets/usmp-logo.png" alt="USMP" /><span>PRISM</span>
+        </a>
+        <div class="topbar-copy">
+          <span class="topbar-kicker">USMP Filial Sur</span>
+          <strong>Comunidad Arequipa</strong>
+        </div>
+        <div class="topbar-actions">
+          <button class="icon-button" type="button" data-route="contacto" aria-label="Contacto" title="Contacto">✉</button>
+          <button id="topbar-admin" class="icon-button" type="button" data-route="admin" aria-label="Administración" title="Administración" hidden>⚙</button>
+          <button id="notification-toggle" class="icon-button notification-button" type="button" data-action="open-notifications" aria-label="Abrir notificaciones" aria-expanded="false">
+            <span aria-hidden="true">🔔</span>
+            <b id="notification-count" class="notification-count" hidden>0</b>
+          </button>
+          <button class="topbar-profile" type="button" data-route="perfil" aria-label="Abrir perfil">
+            <span id="topbar-avatar" class="avatar avatar-top">P</span>
+            <span class="topbar-profile-name" id="topbar-name">Estudiante</span>
+            <span class="chevron">⌄</span>
+          </button>
+        </div>
+      </header>
+
+      <div id="page-content" class="page-content" aria-live="polite"></div>
+    </main>
+
+    <nav class="mobile-nav" aria-label="Navegación móvil">
+      <button class="mobile-nav-item is-active" type="button" data-route="inicio"><span>⌂</span><small>Inicio</small></button>
+      <button class="mobile-nav-item" type="button" data-route="chat"><span>💬</span><small>Chat</small></button>
+      <button class="mobile-nav-item" type="button" data-route="buscar"><span>⌕</span><small>Buscar</small></button>
+      <button class="mobile-nav-item" type="button" data-route="asistente"><span>✦</span><small>Asistente</small></button>
+      <button class="mobile-nav-item" type="button" data-route="perfil"><span>◎</span><small>Perfil</small></button>
+    </nav>
+
+    <aside id="notification-panel" class="notification-panel" hidden aria-label="Notificaciones">
+      <div class="panel-head">
+        <div><p class="eyebrow">Tu campus</p><h2>Notificaciones</h2></div>
+        <button class="icon-button" type="button" data-action="close-notifications" aria-label="Cerrar notificaciones">×</button>
+      </div>
+      <button class="text-button" type="button" data-action="read-notifications">Marcar todas como leídas</button>
+      <div id="notification-list" class="notification-list"></div>
+    </aside>
+  </div>
+
+  <div id="modal-root"></div>
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <input id="story-camera" class="visually-hidden" type="file" accept="image/*" capture="environment" />
+  <input id="profile-camera" class="visually-hidden" type="file" accept="image/*" capture="user" />
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="./app.js"></script>
+  <script src="./features.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js?v=32').then((reg) => {
+          reg.update();
+        }).catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>

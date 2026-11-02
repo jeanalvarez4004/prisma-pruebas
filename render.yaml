@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: prism-usmp
+    runtime: node
+    plan: free
+    branch: main
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Keep Node on 20.x: better-sqlite3 11.x does not compile on Node 26.
+      - key: NODE_VERSION
+        value: 20.19.3
+      # SQLite is intentionally temporary for this first version. For durable
+      # data, attach a paid Render Disk at /opt/render/project/src/data and
+      # change this value to /opt/render/project/src/data/prisma.sqlite.
+      - key: DATABASE_PATH
+        value: ./data/prisma.sqlite
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      # --- Servicios opcionales (si faltan, la app usa un respaldo local) ---
+      - key: ADMIN_EMAILS
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ALGOLIA_APP_ID
+        sync: false
+      - key: ALGOLIA_ADMIN_KEY
+        sync: false
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: CLOUDAMQP_URL
+        sync: false
+    # Descomenta este bloque en un plan pago para persistir SQLite:
+    # disk:
+    #   name: prism-data
+    #   mountPath: /opt/render/project/src/data
+    #   sizeGB: 1
