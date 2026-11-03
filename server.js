@@ -50,10 +50,45 @@ const databaseFile = path.isAbsolute(configuredDatabase)
   : path.resolve(ROOT, configuredDatabase);
 
 fs.mkdirSync(path.dirname(databaseFile), { recursive: true });
-const db = new Database(databaseFile);
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
-db.pragma('busy_timeout = 5000');
+
+// Base de datos: con TURSO_DATABASE_URL + TURSO_AUTH_TOKEN los datos viven en Turso (réplica
+// embebida con la misma API que better-sqlite3), así no se pierden en cada reinicio de Render.
+// Sin esas variables se usa un archivo SQLite local (útil en desarrollo).
+let databaseMode = 'sqlite-local';
+function openDatabase() {
+  const url = process.env.TURSO_DATABASE_URL;
+  const token = process.env.TURSO_AUTH_TOKEN;
+  if (url && token) {
+    try {
+      const Libsql = require('libsql');
+      const replica = path.join(path.dirname(databaseFile), 'turso-replica.sqlite');
+      for (const suffix of ['', '-wal', '-shm', '-info', '-client_wal_index']) fs.rmSync(replica + suffix, { force: true });
+      const connection = new Libsql(replica, { syncUrl: url, authToken: token, syncPeriod: 30 });
+      try {
+        const syncing = connection.sync();
+        if (syncing && typeof syncing.catch === 'function') syncing.catch((error) => console.warn('[Turso] sync:', error.message));
+      } catch (error) {
+        console.warn('[Turso] sync inicial:', error.message);
+      }
+      databaseMode = 'turso';
+      console.log('[DB] Usando Turso (réplica embebida):', url);
+      return connection;
+    } catch (error) {
+      console.error('[DB] No se pudo abrir Turso, se usa SQLite local:', error.message);
+    }
+  }
+  return new Database(databaseFile);
+}
+const db = openDatabase();
+for (const pragma of ['journal_mode = WAL', 'foreign_keys = ON', 'busy_timeout = 5000']) {
+  try { db.pragma(pragma); } catch (error) { console.warn(`[DB] pragma ${pragma}:`, error.message); }
+}
+
+// Ejecuta una transacción inmediata (compatible con better-sqlite3 y libsql).
+function runImmediate(fn) {
+  const tx = db.transaction(fn);
+  return typeof tx.immediate === 'function' ? tx.immediate() : tx();
+}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -63,6 +98,7 @@ db.exec(`
     password_hash TEXT NOT NULL,
     career TEXT NOT NULL DEFAULT 'Sin especificar',
     avatar TEXT,
+    role TEXT NOT NULL DEFAULT 'user',
     created_at TEXT NOT NULL
   );
 
@@ -147,8 +183,12 @@ db.exec(`
 // Servicios añadidos (equivalentes a los del proyecto de referencia):
 // búsqueda (Algolia), asistente (Groq + Qdrant), cola (CloudAMQP), ML y Admin.
 // ---------------------------------------------------------------------------
-if (!db.prepare('PRAGMA table_info(users)').all().some((column) => column.name === 'role')) {
-  db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'");
+try {
+  if (!db.prepare('PRAGMA table_info(users)').all().some((column) => column.name === 'role')) {
+    db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'");
+  }
+} catch (error) {
+  if (!/duplicate column/i.test(error.message)) console.warn('[DB] migración role:', error.message);
 }
 
 db.exec(`
@@ -618,7 +658,7 @@ app.use('/api', sameOriginGuard);
 // HTTP HEAD (Tópico HTTP Methods: Metadatos sin cuerpo de respuesta)
 app.head('/api/health', (req, res) => {
   res.setHeader('X-Service', 'prism-usmp');
-  res.setHeader('X-Database', 'sqlite-wal');
+  res.setHeader('X-Database', databaseMode);
   res.setHeader('X-Cache-Backend', redis.isConfigured() ? 'Upstash-Redis' : 'Memory-Fallback');
   res.status(200).end();
 });
@@ -629,7 +669,7 @@ app.get('/api/health', asyncRoute(async (req, res) => {
   res.json({
     ok: true,
     service: 'prism',
-    database: 'sqlite-wal',
+    database: databaseMode,
     redis: {
       connected: redis.isConfigured(),
       provider: ping.provider,
@@ -1014,7 +1054,7 @@ app.post('/api/activities/:id/join', requireAuth, joinRateLimit, (req, res) => {
 
   let outcome;
   try {
-    outcome = toggleMembership.immediate();
+    outcome = runImmediate(toggleMembership);
   } catch {
     return res.status(409).json({ error: 'La actividad se está actualizando. Inténtalo de nuevo.' });
   }
@@ -1249,7 +1289,7 @@ async function processEnrollment(message) {
   const row = getEnrollment(message.enrollmentId);
   if (!row || row.status !== 'en_cola') return;
   try {
-    const outcome = db.transaction(() => {
+    const outcome = runImmediate(() => {
       const activity = db.prepare('SELECT * FROM activities WHERE id = ?').get(row.activity_id);
       if (!activity) return { status: 'rechazado', detail: 'La actividad ya no existe.' };
       const already = db.prepare('SELECT 1 FROM activity_members WHERE activity_id = ? AND user_id = ?').get(row.activity_id, row.user_id);
@@ -1265,7 +1305,7 @@ async function processEnrollment(message) {
         return { status: 'registrado', notifyOwner: activity.owner_id };
       }
       return { status: 'registrado' };
-    }).immediate();
+    });
 
     finishEnrollment(row, outcome.status, outcome.detail);
     if (outcome.notifyOwner) io.to(userRoom(outcome.notifyOwner)).emit('notification:new', { type: 'activity' });
@@ -1312,7 +1352,7 @@ app.get('/api/admin/estado', requireAdmin, asyncRoute(async (req, res) => {
   const queue = queueService.status();
   const documents = knowledgeService.listDocuments(db).length;
   const servicios = [
-    { nombre: 'SQLite', activo: true, detalle: 'Datos de negocio (modo WAL)' },
+    { nombre: databaseMode === 'turso' ? 'Base de datos (Turso)' : 'Base de datos (SQLite local)', activo: databaseMode === 'turso', detalle: databaseMode === 'turso' ? 'Datos persistentes en Turso' : 'Archivo local: se borra en cada reinicio de Render' },
     { nombre: 'Redis (Upstash)', activo: redis.isConfigured() && ping.ok !== false, detalle: redis.isConfigured() ? `Caché del feed · ${ping.latencyMs ?? '—'} ms` : 'Sin configurar: caché en memoria' },
     { nombre: 'Búsqueda (Algolia)', activo: searchService.isConfigured(), detalle: searchService.isConfigured() ? 'Índice de publicaciones y actividades' : 'Sin configurar: se busca directamente en SQLite' },
     { nombre: 'Asistente (Groq)', activo: assistantService.isConfigured(), detalle: assistantService.isConfigured() ? 'Respuestas redactadas por IA con herramientas' : 'Sin GROQ_API_KEY: modo básico de recuperación' },
