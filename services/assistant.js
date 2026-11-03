@@ -245,8 +245,18 @@ async function respond({ db, messages, send, signal }) {
   }
   const ctx = { db, sources: [], cards: [] };
   try {
-    if (isConfigured()) await answerWithGroq(ctx, history, send, signal);
-    else await answerWithoutLlm(ctx, last.content, send);
+    if (isConfigured()) {
+      let streamed = false;
+      const track = (event) => { if (event.type === 'delta') streamed = true; send(event); };
+      try {
+        await answerWithGroq(ctx, history, track, signal);
+      } catch (error) {
+        if (signal?.aborted || streamed) throw error;
+        // Groq no disponible (clave, modelo o permisos): se responde con los documentos y actividades.
+        console.error('[Asistente] Groq falló, se usa el modo básico:', error.message);
+        await answerWithoutLlm(ctx, last.content, send);
+      }
+    } else await answerWithoutLlm(ctx, last.content, send);
     if (ctx.sources.length) send({ type: 'sources', sources: ctx.sources });
     if (ctx.cards.length) send({ type: 'cards', activities: ctx.cards });
     send({ type: 'done' });
