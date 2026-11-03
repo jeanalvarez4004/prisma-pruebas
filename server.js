@@ -1016,7 +1016,7 @@ app.post('/api/activities/:id/join', requireAuth, joinRateLimit, (req, res) => {
   const activity = db.prepare('SELECT * FROM activities WHERE id = ?').get(activityId);
   if (!activity) return res.status(404).json({ error: 'La actividad ya no existe.' });
 
-  const toggleMembership = db.transaction(() => {
+  const toggleMembership = () => {
     const alreadyJoined = db.prepare(`
       SELECT 1 FROM activity_members WHERE activity_id = ? AND user_id = ?
     `).get(activityId, req.user.id);
@@ -1050,7 +1050,7 @@ app.post('/api/activities/:id/join', requireAuth, joinRateLimit, (req, res) => {
       `).run(activity.owner_id, message, now());
     }
     return { joined: true };
-  });
+  };
 
   let outcome;
   try {
