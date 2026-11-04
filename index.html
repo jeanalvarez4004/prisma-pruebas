@@ -134,6 +134,7 @@
           <strong>Comunidad Arequipa</strong>
         </div>
         <div class="topbar-actions">
+          <button id="sound-toggle" class="icon-button" type="button" aria-pressed="true" title="Silenciar sonidos" aria-label="Silenciar sonidos">🔊</button>
           <button class="icon-button" type="button" data-route="contacto" aria-label="Contacto" title="Contacto">✉</button>
           <button id="topbar-admin" class="icon-button" type="button" data-route="admin" aria-label="Administración" title="Administración" hidden>⚙</button>
           <button id="notification-toggle" class="icon-button notification-button" type="button" data-action="open-notifications" aria-label="Abrir notificaciones" aria-expanded="false">
@@ -178,10 +179,11 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="./app.js"></script>
   <script src="./features.js"></script>
+  <script src="./ux.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js?v=32').then((reg) => {
+        navigator.serviceWorker.register('./sw.js?v=33').then((reg) => {
           reg.update();
         }).catch(() => {});
       });

@@ -1,10 +1,11 @@
-const CACHE = 'prism-v32-features';
+const CACHE = 'prism-v33-ux';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
   './app.js',
   './features.js',
+  './ux.js',
   './manifest.webmanifest',
   './assets/usmp-logo.png',
   './icons/icon-192.png',

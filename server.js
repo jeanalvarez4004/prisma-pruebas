@@ -232,6 +232,17 @@ db.exec(`
     dim INTEGER NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS assistant_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    question TEXT NOT NULL,
+    answer TEXT NOT NULL,
+    rating INTEGER NOT NULL DEFAULT 0,
+    approved INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_assistant_user ON assistant_logs(user_id, id DESC);
   CREATE INDEX IF NOT EXISTS idx_enrollments_user ON enrollments(user_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_enrollments_activity ON enrollments(activity_id, status);
   CREATE INDEX IF NOT EXISTS idx_contact_created ON contact_messages(created_at DESC);
@@ -254,6 +265,7 @@ const documentsService = require('./services/documents');
 const assistantService = require('./services/assistant');
 const queueService = require('./services/queue');
 const mlService = require('./services/ml');
+const memoryService = require('./services/memory');
 
 const POST_CATEGORIES = new Set(['General', 'Académico', 'Comunidad']);
 const ACTIVITY_CATEGORIES = new Set(['Deporte', 'Juego', 'Estudio', 'Transporte', 'Ayuda', 'Otro']);
@@ -1209,6 +1221,24 @@ app.get('/api/search', requireAuth, searchRateLimit, asyncRoute(async (req, res)
   res.json(await searchService.search(db, q, { type, limit: 20 }));
 }));
 
+// Conocimiento propio de PRISM: la guía de funciones se indexa para el asistente (y se actualiza sola).
+async function seedAppGuide() {
+  try {
+    const guide = assistantService.appGuide();
+    if (!guide) return;
+    const hash = crypto.createHash('sha1').update(guide).digest('hex').slice(0, 8);
+    const filename = `guia-prism-${hash}.md`;
+    const existing = db.prepare("SELECT id, filename FROM knowledge_docs WHERE filename LIKE 'guia-prism-%'").all();
+    if (existing.some((doc) => doc.filename === filename)) return;
+    for (const doc of existing) await knowledgeService.deleteDocument(db, doc.id);
+    await knowledgeService.addDocument(db, { title: 'Guía de PRISM', filename, text: guide, userId: null });
+    console.log('[Asistente] Guía de PRISM indexada.');
+  } catch (error) {
+    console.warn('[Asistente] No se pudo indexar la guía:', error.message);
+  }
+}
+seedAppGuide();
+
 // --- Asistente con respuesta progresiva (SSE) ------------------------------------
 app.post('/api/asistente', requireAuth, assistantRateLimit, asyncRoute(async (req, res) => {
   res.status(200).set({
@@ -1220,11 +1250,63 @@ app.post('/api/asistente', requireAuth, assistantRateLimit, asyncRoute(async (re
   res.flushHeaders();
   const controller = new AbortController();
   res.on('close', () => controller.abort());
+  let answer = '';
   const send = (event) => {
+    if (event.type === 'delta') answer += event.text;
     if (!res.writableEnded) res.write(`data: ${JSON.stringify(event)}\n\n`);
   };
-  await assistantService.respond({ db, messages: req.body && req.body.messages, send, signal: controller.signal });
+  const messages = Array.isArray(req.body && req.body.messages) ? req.body.messages : [];
+  const lastUser = [...messages].reverse().find((m) => m && m.role === 'user' && typeof m.content === 'string');
+  const question = cleanText(lastUser && lastUser.content, 500);
+  let userContext = '';
+  try { userContext = memoryService.contextFor(db, req.user); } catch (error) { console.warn('[Memoria]', error.message); }
+  await assistantService.respond({ db, messages, send, signal: controller.signal, userContext });
+  if (question && answer.trim() && !controller.signal.aborted) {
+    try { send({ type: 'logged', id: memoryService.logExchange(db, { userId: req.user.id, question, answer }) }); }
+    catch (error) { console.warn('[Memoria] no se pudo guardar el intercambio:', error.message); }
+  }
   res.end();
+}));
+
+// Votos 👍/👎 por id de respuesta (el texto vive en el servidor). Lo valorado 👍 queda pendiente
+// hasta que un administrador lo apruebe como conocimiento.
+app.post('/api/asistente/feedback', requireAuth, rateLimit(60 * 1000, 40, 'feedback'), (req, res) => {
+  const id = Number(req.body && req.body.id);
+  const rating = Number(req.body && req.body.rating);
+  if (!Number.isInteger(id) || ![1, -1, 0].includes(rating)) return validationError(res, 'Valoración no válida.');
+  if (!memoryService.rate(db, { id, userId: req.user.id, rating })) return res.status(404).json({ error: 'No encontré esa respuesta.' });
+  return res.json({ ok: true });
+});
+
+app.get('/api/asistente/memoria', requireAuth, (req, res) => {
+  res.json({ memoria: memoryService.summary(db, req.user) });
+});
+
+app.delete('/api/asistente/memoria', requireAuth, (req, res) => {
+  memoryService.forget(db, req.user.id);
+  res.json({ ok: true });
+});
+
+app.get('/api/admin/aprendizaje', requireAdmin, (req, res) => {
+  res.json(memoryService.report(db));
+});
+
+app.post('/api/admin/aprendizaje/:id', requireAdmin, asyncRoute(async (req, res) => {
+  const id = Number(req.params.id);
+  const row = Number.isInteger(id) ? db.prepare('SELECT * FROM assistant_logs WHERE id = ? AND rating = 1 AND approved = 0').get(id) : null;
+  if (!row) return res.status(404).json({ error: 'Esa respuesta ya no está pendiente.' });
+  if (req.body && req.body.action === 'aprobar') {
+    await knowledgeService.addDocument(db, {
+      title: `Aprendido: ${row.question.slice(0, 70)}`,
+      filename: 'aprendido.md',
+      text: `Pregunta: ${row.question}\nRespuesta: ${row.answer}`,
+      userId: req.user.id,
+    });
+    db.prepare('UPDATE assistant_logs SET approved = 1 WHERE id = ?').run(id);
+  } else {
+    db.prepare('UPDATE assistant_logs SET approved = -1 WHERE id = ?').run(id);
+  }
+  res.json({ ok: true });
 }));
 
 // --- Inscripciones en cola (en_cola -> registrado) --------------------------------
@@ -1416,7 +1498,7 @@ app.get('/api/admin/reportes', requireAdmin, (req, res) => {
 // Keep the repository files usable as a single Render web service without
 // exposing the SQLite file or the Node entry point as public assets.
 app.use((req, res, next) => {
-  if (/^\/(?:\.git|data|node_modules)(?:\/|$)/i.test(req.path) || /^\/(?:server\.js|package(?:-lock)?\.json|requirements\.txt|\.env)/i.test(req.path)) {
+  if (/^\/(?:\.git|data|node_modules|services|scripts|ml)(?:\/|$)/i.test(req.path) || /^\/(?:server\.js|package(?:-lock)?\.json|requirements\.txt|\.env)/i.test(req.path)) {
     return res.status(404).end();
   }
   return next();

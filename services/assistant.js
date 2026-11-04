@@ -15,12 +15,28 @@ const { fetchJson, normalizeText, sleep } = require('./http');
 const GROQ_URL = (process.env.GROQ_API_URL || 'https://api.groq.com/openai/v1').replace(/\/$/, '');
 const MAX_ROUNDS = 4;
 
-const SYSTEM_PROMPT = `Eres PRISM Bot, el asistente de PRISM, la comunidad de estudiantes de la USMP Filial Sur (Arequipa).
-Responde siempre en español, de forma breve y amable.
+const fs = require('node:fs');
+const path = require('node:path');
+
+/** Guía de funciones de PRISM: se incluye en el prompt y se indexa como documento. */
+const GUIDE_FILE = path.join(__dirname, '..', 'docs-ejemplo', 'guia-prism.md');
+function appGuide() {
+  try { return fs.readFileSync(GUIDE_FILE, 'utf8'); } catch { return ''; }
+}
+
+const BASE_PROMPT = `Eres PRISM Bot, el asistente de PRISM, la comunidad de estudiantes de la USMP Filial Sur (Arequipa).
+Responde siempre en español, de forma breve, cálida y clara.
+- Para preguntas sobre cómo usar PRISM o qué puede hacer la página, responde con la guía de PRISM incluida abajo.
 - Para preguntas sobre reglamentos, trámites, servicios o información de la universidad usa la herramienta buscar_conocimiento y responde SOLO con lo que devuelva. Si no hay información, dilo con claridad y no inventes.
 - Para preguntas sobre actividades, cupos o planes del campus usa consultar_actividades.
 - Para conversiones de moneda usa tipo_cambio.
-- No tienes herramientas para inscribir ni crear nada: indica al estudiante que lo haga desde la sección Inicio.`;
+- No tienes herramientas para inscribir ni crear nada: indica al estudiante que pulse "Unirme" en la ficha o que lo haga desde Inicio.
+- Usa el contexto del estudiante para personalizar (por ejemplo sugerir actividades de sus intereses), sin repetirlo literalmente ni inventar datos sobre él.`;
+
+function buildSystemPrompt(userContext) {
+  const guide = appGuide();
+  return [BASE_PROMPT, guide ? `\n\n=== GUÍA DE PRISM ===\n${guide}` : '', userContext ? `\n\n=== CONTEXTO DEL ESTUDIANTE ===\n${userContext}` : ''].join('');
+}
 
 const TOOLS = [
   {
@@ -183,7 +199,7 @@ async function streamGroqRound(messages, send, signal) {
 }
 
 async function answerWithGroq(ctx, history, send, signal) {
-  const messages = [{ role: 'system', content: SYSTEM_PROMPT }, ...history];
+  const messages = [{ role: 'system', content: buildSystemPrompt(ctx.userContext) }, ...history];
   for (let round = 0; round < MAX_ROUNDS; round += 1) {
     const { content, calls } = await streamGroqRound(messages, send, signal);
     if (!calls.length) return;
@@ -233,7 +249,7 @@ async function answerWithoutLlm(ctx, question, send) {
  * @param {{db, messages: {role, content}[], send: (event) => void, signal?: AbortSignal}} options
  * Eventos: delta, sources, cards, done, error.
  */
-async function respond({ db, messages, send, signal }) {
+async function respond({ db, messages, send, signal, userContext = '' }) {
   const history = (Array.isArray(messages) ? messages : [])
     .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
     .slice(-10)
@@ -243,7 +259,7 @@ async function respond({ db, messages, send, signal }) {
     send({ type: 'error', message: 'Escribe una pregunta.' });
     return;
   }
-  const ctx = { db, sources: [], cards: [] };
+  const ctx = { db, sources: [], cards: [], userContext };
   try {
     if (isConfigured()) {
       let streamed = false;
@@ -267,4 +283,4 @@ async function respond({ db, messages, send, signal }) {
   }
 }
 
-module.exports = { respond, isConfigured, queryActivities, TOOLS };
+module.exports = { respond, isConfigured, queryActivities, TOOLS, appGuide };

@@ -119,10 +119,34 @@
     return parts.join('');
   }
 
+  function rateHtml(message, index) {
+    if (!message.content || message.failed || !message.logId) return '';
+    const mark = (v) => (message.rating === v ? 'is-on' : '');
+    return `<div class="f-rate"><span>¿Te sirvió?</span>
+      <button type="button" class="f-rate-btn ${mark(1)}" data-f="rate" data-i="${index}" data-v="1" aria-label="Me sirvió" aria-pressed="${message.rating === 1}">👍</button>
+      <button type="button" class="f-rate-btn ${mark(-1)}" data-f="rate" data-i="${index}" data-v="-1" aria-label="No me sirvió" aria-pressed="${message.rating === -1}">👎</button>
+      ${message.rating === 1 ? '<span class="f-muted">¡Gracias! El equipo revisará esta respuesta para enseñársela al asistente.</span>' : ''}
+      ${message.rating === -1 ? '<span class="f-muted">Gracias, la revisaremos.</span>' : ''}</div>`;
+  }
+
+  async function rateAnswer(index, value) {
+    const answer = f.chat[index];
+    if (!answer || !answer.logId) return;
+    const next = answer.rating === value ? 0 : value;
+    try {
+      await request('/api/asistente/feedback', { method: 'POST', body: { id: answer.logId, rating: next } });
+      answer.rating = next;
+      if (currentRoute() === 'asistente') renderAssistant();
+    } catch (error) {
+      showToast(error.message, true);
+    }
+  }
+
   function messageHtml(message, index) {
     if (message.role === 'user') return `<div class="f-msg is-user">${esc(message.content)}</div>`;
     const typing = f.streaming && index === f.chat.length - 1 ? ' f-typing' : '';
-    return `<div class="f-msg is-bot"><span class="f-text${typing}" data-i="${index}">${esc(message.content)}</span><div class="f-extras">${botExtras(message)}</div></div>`;
+    const streamingNow = f.streaming && index === f.chat.length - 1;
+    return `<div class="f-msg is-bot"><span class="f-text${typing}" data-i="${index}">${esc(message.content)}</span><div class="f-extras">${botExtras(message)}</div>${streamingNow ? '' : rateHtml(message, index)}</div>`;
   }
 
   function renderAssistant() {
@@ -130,6 +154,7 @@
     page().innerHTML = `
       <div class="f-page">
         ${head('Inteligencia artificial', 'Asistente PRISM', 'Pregunta sobre reglamentos, trámites, actividades o tipo de cambio.')}
+        <section id="f-memory" class="surface-card f-memory" aria-live="polite"></section>
         <section class="surface-card f-chat">
           <div id="f-chat-stream" class="f-chat-stream">
             ${empty ? '<div class="f-muted" style="margin:auto;text-align:center">¡Hola! Soy PRISM Bot. ¿En qué te ayudo?</div>' : f.chat.map(messageHtml).join('')}
@@ -142,6 +167,23 @@
         </section>
       </div>`;
     scrollChat();
+    loadMemory();
+  }
+
+  async function loadMemory() {
+    const box = document.getElementById('f-memory');
+    if (!box) return;
+    try {
+      const { memoria } = await request('/api/asistente/memoria');
+      if (!document.getElementById('f-memory')) return;
+      const chips = [
+        ...memoria.actividades.map((a) => `<span class="f-badge is-orange">${activityIcon(a.categoria)} ${esc(a.categoria)} ×${a.n}</span>`),
+        ...memoria.temas.map((t) => `<span class="f-badge">#${esc(t.texto)}</span>`),
+      ];
+      box.innerHTML = chips.length
+        ? `<div class="f-row"><strong class="f-grow">🧠 Lo que recuerdo de ti</strong><button type="button" class="text-button" data-f="forget">Olvidar</button></div><div class="f-chips">${chips.join('')}</div>`
+        : '<span class="f-muted">🧠 Aún te estoy conociendo: mientras más uses PRISM y valores mis respuestas, mejor te ayudo.</span>';
+    } catch { box.hidden = true; }
   }
 
   function scrollChat() {
@@ -199,13 +241,14 @@
           if (event.type === 'delta') message.content += event.text;
           else if (event.type === 'sources') message.sources = event.sources;
           else if (event.type === 'cards') message.cards = event.activities;
+          else if (event.type === 'logged') message.logId = event.id;
           else if (event.type === 'error') message.content = message.content || event.message;
           refreshBotBubble(index);
         }
       }
       if (!f.chat[index].content) f.chat[index].content = 'No obtuve respuesta. Inténtalo de nuevo.';
     } catch (error) {
-      f.chat[index].content = f.chat[index].content || error.message;
+      if (!f.chat[index].content) { f.chat[index].content = error.message; f.chat[index].failed = true; }
     } finally {
       f.streaming = false;
       if (currentRoute() === 'asistente') {
@@ -344,7 +387,7 @@
   }
 
   /* --------------------------- Administración --------------------------- */
-  const ADMIN_TABS = [['estado', 'Servicios'], ['conocimiento', 'Conocimiento'], ['busqueda', 'Índice de búsqueda'], ['reportes', 'Reportes']];
+  const ADMIN_TABS = [['estado', 'Servicios'], ['conocimiento', 'Conocimiento'], ['busqueda', 'Índice de búsqueda'], ['reportes', 'Reportes'], ['aprendizaje', 'Aprendizaje']];
 
   function renderAdmin() {
     if (!isAdmin()) {
@@ -394,6 +437,27 @@
           <h2>Índice de búsqueda</h2>
           <p class="f-muted">Reenvía todas las publicaciones y actividades al índice de Algolia. Las altas nuevas se indexan solas; usa esta sincronización completa tras cambios masivos. Sin Algolia configurado, la búsqueda consulta SQLite directamente.</p>
           <div class="f-row"><button class="primary-button" type="button" data-f="sync-index">Sincronizar ahora</button><span id="f-sync-status" class="f-muted"></span></div>`;
+      } else if (f.adminTab === 'aprendizaje') {
+        const data = await request('/api/admin/aprendizaje');
+        if (!body()) return;
+        const r = data.resumen;
+        const rows = (list, withActions) => `<div class="f-scroll"><table class="f-table"><thead><tr><th>Pregunta</th><th>Respuesta</th><th>De</th>${withActions ? '<th></th>' : ''}</tr></thead><tbody>
+          ${list.map((n) => `<tr><td>${esc(n.question)}</td><td>${esc(n.answer.slice(0, 240))}${n.answer.length > 240 ? '…' : ''}</td><td>${esc(n.author || '—')}<div class="f-muted">${esc(timeAgo(n.createdAt))}</div></td>
+            ${withActions ? `<td class="f-actions"><button class="primary-button" type="button" data-f="learn" data-v="aprobar" data-id="${n.id}">Enseñar</button> <button class="text-button" type="button" data-f="learn" data-v="descartar" data-id="${n.id}">Descartar</button></td>` : ''}</tr>`).join('')}</tbody></table></div>`;
+        body().innerHTML = `
+          <h2>Aprendizaje del asistente</h2>
+          <div class="f-stats">
+            <div class="f-stat"><b>${r.total}</b><span>Respuestas</span></div>
+            <div class="f-stat"><b>${r.positivas}</b><span>👍 Útiles</span></div>
+            <div class="f-stat"><b>${r.negativas}</b><span>👎 A mejorar</span></div>
+            <div class="f-stat"><b>${r.sinValorar}</b><span>Sin valorar</span></div>
+          </div>
+          ${data.frecuentes.length ? `<h3>Temas más preguntados</h3><div class="f-chips">${data.frecuentes.map((t) => `<span class="f-badge">#${esc(t.texto)} · ${t.n}</span>`).join('')}</div>` : ''}
+          <h3 style="margin-top:18px">Pendientes de enseñar (👍)</h3>
+          <p class="f-muted">Revisa que la respuesta sea correcta antes de enseñársela al asistente.</p>
+          ${data.pendientes.length ? rows(data.pendientes, true) : '<p class="f-muted">No hay respuestas pendientes.</p>'}
+          <h3 style="margin-top:18px">Marcadas como mejorables (👎)</h3>
+          ${data.negativas.length ? rows(data.negativas, false) + '<p class="f-muted">Sube un documento en “Conocimiento” con la información que falta.</p>' : '<p class="f-muted">Todavía no hay respuestas marcadas como mejorables.</p>'}`;
       } else if (f.adminTab === 'reportes') {
         const data = await request('/api/admin/reportes');
         if (!body()) return;
@@ -503,6 +567,23 @@
       target.disabled = false;
     } else if (action === 'suggest') {
       askAssistant(target.dataset.text);
+    } else if (action === 'rate') {
+      rateAnswer(Number(target.dataset.i), Number(target.dataset.v));
+    } else if (action === 'forget') {
+      if (!confirm('¿Borrar lo que el asistente recuerda de ti?')) return;
+      try {
+        await request('/api/asistente/memoria', { method: 'DELETE' });
+        f.chat.forEach((m) => { delete m.logId; });
+        showToast('Listo: ya no recuerdo tus conversaciones anteriores.');
+        loadMemory();
+      } catch (error) { showToast(error.message, true); }
+    } else if (action === 'learn') {
+      target.disabled = true;
+      try {
+        await request(`/api/admin/aprendizaje/${target.dataset.id}`, { method: 'POST', body: { action: target.dataset.v } });
+        showToast(target.dataset.v === 'aprobar' ? '✅ El asistente aprendió esta respuesta' : 'Respuesta descartada');
+        loadAdminTab();
+      } catch (error) { showToast(error.message, true); target.disabled = false; }
     } else if (action === 'admin-tab') {
       f.adminTab = target.dataset.v;
       renderAdmin();
