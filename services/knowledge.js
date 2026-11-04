@@ -177,6 +177,30 @@ async function deleteDocument(db, docId) {
   return true;
 }
 
+/** Sube a Qdrant los documentos que solo están en SQLite (p. ej. los creados antes de conectar Qdrant). */
+async function syncToQdrant(db) {
+  const cfg = qdrantConfig();
+  if (!cfg) return { synced: 0 };
+  const docs = db.prepare("SELECT id, title FROM knowledge_docs WHERE engine != 'qdrant'").all();
+  let synced = 0;
+  for (const doc of docs) {
+    const rows = db.prepare('SELECT id, idx, text, vec, provider, dim FROM knowledge_chunks WHERE doc_id = ?').all(doc.id);
+    if (!rows.length) continue;
+    try {
+      const collection = await ensureCollection(cfg, rows[0].provider, rows[0].dim);
+      await qdrant(cfg, `/collections/${collection}/points?wait=true`, 'PUT', {
+        points: rows.map((r) => ({ id: r.id, vector: JSON.parse(r.vec), payload: { doc_id: doc.id, title: doc.title, idx: r.idx, text: r.text } })),
+      });
+      db.prepare("UPDATE knowledge_docs SET engine = 'qdrant' WHERE id = ?").run(doc.id);
+      synced += 1;
+    } catch (error) {
+      console.warn('[Conocimiento] No se pudo sincronizar con Qdrant:', error.message);
+      break;
+    }
+  }
+  return { synced };
+}
+
 function listDocuments(db) {
   return db.prepare(`
     SELECT d.id, d.title, d.filename, d.chunk_count AS chunks, d.engine, d.created_at AS createdAt, u.name AS uploadedBy
@@ -215,7 +239,9 @@ async function search(db, query, limit = 4) {
       const data = await qdrant(cfg, `/collections/${collection}/points/search`, 'POST', {
         vector: vectors[0], limit, with_payload: true,
       });
-      return (data.result || []).map((hit) => ({ title: hit.payload.title, text: hit.payload.text, score: hit.score }));
+      const hits = (data.result || []).map((hit) => ({ title: hit.payload.title, text: hit.payload.text, score: hit.score }));
+      if (hits.length) return hits;
+      // Qdrant sin resultados (p. ej. aún sin sincronizar): se usa SQLite.
     } catch (error) {
       console.warn('[Conocimiento] Qdrant falló, se usa SQLite:', error.message);
     }
@@ -223,4 +249,4 @@ async function search(db, query, limit = 4) {
   return searchLocal(db, vectors[0], provider, dim, limit, q).filter((hit) => hit.score > 0.05);
 }
 
-module.exports = { addDocument, deleteDocument, listDocuments, search, isQdrantConfigured, embeddingsMode, localEmbed };
+module.exports = { syncToQdrant, addDocument, deleteDocument, listDocuments, search, isQdrantConfigured, embeddingsMode, localEmbed };

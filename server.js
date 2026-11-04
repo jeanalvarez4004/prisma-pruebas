@@ -1237,7 +1237,10 @@ async function seedAppGuide() {
     console.warn('[Asistente] No se pudo indexar la guía:', error.message);
   }
 }
-seedAppGuide();
+seedAppGuide()
+  .then(() => knowledgeService.syncToQdrant(db))
+  .then((r) => { if (r.synced) console.log(`[Conocimiento] ${r.synced} documento(s) sincronizados con Qdrant.`); })
+  .catch((error) => console.warn('[Conocimiento] Sincronización con Qdrant:', error.message));
 
 // --- Asistente con respuesta progresiva (SSE) ------------------------------------
 app.post('/api/asistente', requireAuth, assistantRateLimit, asyncRoute(async (req, res) => {
