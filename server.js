@@ -38,7 +38,6 @@ const redis = require('./redis-client');
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
-const USMP_EMAIL_ONLY = process.env.USMP_EMAIL_ONLY === 'true';
 const SESSION_DAYS = 30;
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const PASSWORD_MAX_BYTES = 512;
@@ -292,7 +291,7 @@ function isValidEmail(email) {
 }
 
 function isAllowedEmail(email) {
-  return !USMP_EMAIL_ONLY || email.endsWith('@usmp.edu.pe');
+  return /^[^\s@]+@usmp\.pe$/.test(email);
 }
 
 function isValidImage(value) {
@@ -764,7 +763,7 @@ app.post('/api/auth/register', authRateLimit, asyncRoute(async (req, res) => {
 
   if (name.length < 2) return validationError(res, 'Escribe un nombre de al menos 2 caracteres.');
   if (!isValidEmail(email)) return validationError(res, 'Escribe un correo electrónico válido.');
-  if (!isAllowedEmail(email)) return validationError(res, 'Por ahora solo se admiten correos de la USMP.');
+  if (!isAllowedEmail(email)) return validationError(res, 'Solo se pueden crear cuentas con un correo institucional @usmp.pe.');
   if (password.length < 8) return validationError(res, 'La contraseña debe tener al menos 8 caracteres.');
   if (password.length > 128 || Buffer.byteLength(password, 'utf8') > PASSWORD_MAX_BYTES) {
     return validationError(res, 'La contraseña es demasiado larga.');
@@ -798,7 +797,7 @@ app.post('/api/auth/register', authRateLimit, asyncRoute(async (req, res) => {
 app.post('/api/auth/login', authRateLimit, asyncRoute(async (req, res) => {
   const email = normalizeEmail(req.body && req.body.email);
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
-  if (!isValidEmail(email) || !isAllowedEmail(email) || !password || password.length > 128 || Buffer.byteLength(password, 'utf8') > PASSWORD_MAX_BYTES) {
+  if (!isValidEmail(email) || !password || password.length > 128 || Buffer.byteLength(password, 'utf8') > PASSWORD_MAX_BYTES) {
     return validationError(res, 'Ingresa tu correo y contraseña.');
   }
 
