@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>PRISM — Comunidad USMP Arequipa</title>
   <meta name="description" content="PRISM: comunidad universitaria de la USMP Filial Sur Arequipa. Conecta, participa y organiza actividades con estudiantes." />
-  <meta name="theme-color" content="#f7f4f5" />
+  <meta name="theme-color" content="#b3132b" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -25,19 +25,18 @@
           <img src="./assets/usmp-logo.png" alt="USMP" />
           <span>PRISM</span>
         </div>
-        <p class="eyebrow">USMP · FILIAL SUR · AREQUIPA</p>
+        <p class="auth-kicker">USMP Filial Sur · Arequipa</p>
         <h1>Tu campus, <em>más cerca.</em></h1>
         <p class="auth-intro-copy">Un espacio para compartir lo que haces, encontrar a tu grupo y convertir ideas en planes con la comunidad.</p>
         <div class="intro-points">
-          <span>✓ Publica y responde</span>
-          <span>✓ Organiza actividades</span>
-          <span>✓ Conecta con tu carrera</span>
+          <span>Publica y responde</span>
+          <span>Organiza actividades</span>
+          <span>Conecta con tu carrera</span>
         </div>
       </div>
 
       <div class="auth-card">
         <div class="auth-card-head">
-          <p class="eyebrow">Comunidad universitaria</p>
           <h2 id="auth-title">Qué gusto verte</h2>
           <p id="auth-subtitle" class="muted">Inicia sesión para entrar a PRISM.</p>
         </div>
@@ -49,10 +48,10 @@
 
         <form id="login-form" class="auth-form" novalidate>
           <label for="login-email">Correo electrónico</label>
-          <input id="login-email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="tu.correo@ejemplo.com" required />
+          <input id="login-email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="tu.nombre@usmp.pe" required />
           <label for="login-password">Contraseña</label>
           <input id="login-password" name="password" type="password" autocomplete="current-password" placeholder="Tu contraseña" maxlength="128" required />
-          <button class="primary-button full-width" type="submit">Entrar a mi cuenta <span>→</span></button>
+          <button class="primary-button full-width" type="submit">Entrar a mi cuenta <span aria-hidden="true">→</span></button>
         </form>
 
         <form id="register-form" class="auth-form" hidden novalidate>
@@ -66,11 +65,11 @@
           <input id="register-password" name="password" type="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres" minlength="8" maxlength="128" required />
           <label for="register-confirm">Repite la contraseña</label>
           <input id="register-confirm" name="confirmPassword" type="password" autocomplete="new-password" placeholder="Repite tu contraseña" minlength="8" maxlength="128" required />
-          <button class="primary-button full-width" type="submit">Crear mi cuenta <span>→</span></button>
+          <button class="primary-button full-width" type="submit">Crear mi cuenta <span aria-hidden="true">→</span></button>
         </form>
 
         <div id="auth-feedback" class="form-feedback" role="alert" hidden></div>
-        <p class="auth-note">Por ahora puedes registrar cualquier correo. La validación exclusiva de correos USMP llegará en una próxima actualización.</p>
+        <p class="auth-note">Solo se pueden crear cuentas con tu correo institucional <strong>@usmp.pe</strong>.</p>
       </div>
     </div>
   </section>
@@ -88,25 +87,25 @@
       <nav class="sidebar-nav">
         <p class="nav-label">Explorar</p>
         <button class="nav-item is-active" type="button" data-route="inicio">
-          <span class="nav-icon">⌂</span><span>Inicio</span>
+          <span class="nav-icon"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/><path d="M10 19.5v-5h4v5"/></svg></span><span>Inicio</span>
         </button>
         <button class="nav-item" type="button" data-route="chat">
-          <span class="nav-icon">💬</span><span>Chat Campus</span>
+          <span class="nav-icon"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.1A8 8 0 1 1 20 12Z"/></svg></span><span>Chat Campus</span>
         </button>
         <button class="nav-item" type="button" data-route="buscar">
-          <span class="nav-icon">⌕</span><span>Buscar</span>
+          <span class="nav-icon"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg></span><span>Buscar</span>
         </button>
         <button class="nav-item" type="button" data-route="asistente">
-          <span class="nav-icon">✦</span><span>Asistente IA</span>
+          <span class="nav-icon"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 13.9 9l5.6 1.9-5.6 1.9L12 18.5l-1.9-5.7L4.5 10.9 10.1 9Z"/><path d="M18.5 3.5v3M17 5h3"/></svg></span><span>Asistente IA</span>
         </button>
         <button class="nav-item" type="button" data-route="contacto">
-          <span class="nav-icon">✉</span><span>Contacto</span>
+          <span class="nav-icon"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="2.5"/><path d="m4 7.5 8 6 8-6"/></svg></span><span>Contacto</span>
         </button>
         <button id="nav-admin" class="nav-item" type="button" data-route="admin" hidden>
-          <span class="nav-icon">⚙</span><span>Administración</span>
+          <span class="nav-icon"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6"/></svg></span><span>Administración</span>
         </button>
         <button class="nav-item" type="button" data-route="perfil">
-          <span class="nav-icon">◎</span><span>Perfil</span>
+          <span class="nav-icon"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.7"/><path d="M4.8 20c.9-3.6 3.8-5.4 7.2-5.4s6.3 1.8 7.2 5.4"/></svg></span><span>Perfil</span>
         </button>
       </nav>
 
@@ -119,7 +118,7 @@
         <div class="sidebar-user">
           <div id="sidebar-avatar" class="avatar avatar-small">P</div>
           <div class="sidebar-user-copy"><strong id="sidebar-name">Estudiante</strong><small id="sidebar-career">USMP</small></div>
-          <button class="icon-button" type="button" data-action="logout" title="Cerrar sesión" aria-label="Cerrar sesión">↪</button>
+          <button class="icon-button" type="button" data-action="logout" title="Cerrar sesión" aria-label="Cerrar sesión"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2H9"/><path d="M15 8l4 4-4 4M19 12H9.5"/></svg></button>
         </div>
       </div>
     </aside>
@@ -134,17 +133,17 @@
           <strong>Comunidad Arequipa</strong>
         </div>
         <div class="topbar-actions">
-          <button id="sound-toggle" class="icon-button" type="button" aria-pressed="true" title="Silenciar sonidos" aria-label="Silenciar sonidos">🔊</button>
-          <button class="icon-button" type="button" data-route="contacto" aria-label="Contacto" title="Contacto">✉</button>
-          <button id="topbar-admin" class="icon-button" type="button" data-route="admin" aria-label="Administración" title="Administración" hidden>⚙</button>
+          <button id="sound-toggle" class="icon-button" type="button" aria-pressed="true" title="Silenciar sonidos" aria-label="Silenciar sonidos"><span class="snd-on"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5Z"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"/></svg></span><span class="snd-off"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5Z"/><path d="m16 9.5 5 5M21 9.5l-5 5"/></svg></span></button>
+          <button class="icon-button" type="button" data-route="contacto" aria-label="Contacto" title="Contacto"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="2.5"/><path d="m4 7.5 8 6 8-6"/></svg></button>
+          <button id="topbar-admin" class="icon-button" type="button" data-route="admin" aria-label="Administración" title="Administración" hidden><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6"/></svg></button>
           <button id="notification-toggle" class="icon-button notification-button" type="button" data-action="open-notifications" aria-label="Abrir notificaciones" aria-expanded="false">
-            <span aria-hidden="true">🔔</span>
+            <span aria-hidden="true" class="bell"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 1.5h-15Z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/></svg></span>
             <b id="notification-count" class="notification-count" hidden>0</b>
           </button>
           <button class="topbar-profile" type="button" data-route="perfil" aria-label="Abrir perfil">
             <span id="topbar-avatar" class="avatar avatar-top">P</span>
             <span class="topbar-profile-name" id="topbar-name">Estudiante</span>
-            <span class="chevron">⌄</span>
+            <span class="chevron" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
           </button>
         </div>
       </header>
@@ -153,11 +152,11 @@
     </main>
 
     <nav class="mobile-nav" aria-label="Navegación móvil">
-      <button class="mobile-nav-item is-active" type="button" data-route="inicio"><span>⌂</span><small>Inicio</small></button>
-      <button class="mobile-nav-item" type="button" data-route="chat"><span>💬</span><small>Chat</small></button>
-      <button class="mobile-nav-item" type="button" data-route="buscar"><span>⌕</span><small>Buscar</small></button>
-      <button class="mobile-nav-item" type="button" data-route="asistente"><span>✦</span><small>Asistente</small></button>
-      <button class="mobile-nav-item" type="button" data-route="perfil"><span>◎</span><small>Perfil</small></button>
+      <button class="mobile-nav-item is-active" type="button" data-route="inicio"><span><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/><path d="M10 19.5v-5h4v5"/></svg></span><small>Inicio</small></button>
+      <button class="mobile-nav-item" type="button" data-route="chat"><span><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.1A8 8 0 1 1 20 12Z"/></svg></span><small>Chat</small></button>
+      <button class="mobile-nav-item" type="button" data-route="buscar"><span><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg></span><small>Buscar</small></button>
+      <button class="mobile-nav-item" type="button" data-route="asistente"><span><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 13.9 9l5.6 1.9-5.6 1.9L12 18.5l-1.9-5.7L4.5 10.9 10.1 9Z"/><path d="M18.5 3.5v3M17 5h3"/></svg></span><small>Asistente</small></button>
+      <button class="mobile-nav-item" type="button" data-route="perfil"><span><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.7"/><path d="M4.8 20c.9-3.6 3.8-5.4 7.2-5.4s6.3 1.8 7.2 5.4"/></svg></span><small>Perfil</small></button>
     </nav>
 
     <aside id="notification-panel" class="notification-panel" hidden aria-label="Notificaciones">
@@ -183,7 +182,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js?v=33').then((reg) => {
+        navigator.serviceWorker.register('./sw.js?v=34').then((reg) => {
           reg.update();
         }).catch(() => {});
       });

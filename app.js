@@ -599,8 +599,8 @@ function layoutHome() {
       <p>Comparte lo que estás haciendo o encuentra gente para lo que tienes en mente.</p>
       <div class="home-actions">
         <button class="primary-button" type="button" data-action="create-post">＋ Publicar</button>
-        <button class="secondary-button" type="button" data-action="create-activity">⌁ Crear actividad</button>
-        <button class="outline-button" type="button" data-action="story-camera">◉ Subir historia</button>
+        <button class="secondary-button" type="button" data-action="create-activity">Crear actividad</button>
+        <button class="outline-button" type="button" data-action="story-camera">Subir historia</button>
       </div>
     </section>
 

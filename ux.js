@@ -58,7 +58,6 @@
   function paintToggle() {
     const button = document.getElementById('sound-toggle');
     if (!button) return;
-    button.textContent = enabled ? '🔊' : '🔇';
     button.setAttribute('aria-pressed', String(enabled));
     button.title = enabled ? 'Silenciar sonidos' : 'Activar sonidos';
     button.setAttribute('aria-label', button.title);
