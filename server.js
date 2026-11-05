@@ -1241,6 +1241,13 @@ seedAppGuide()
   .then((r) => { if (r.synced) console.log(`[Conocimiento] ${r.synced} documento(s) sincronizados con Qdrant.`); })
   .catch((error) => console.warn('[Conocimiento] Sincronización con Qdrant:', error.message));
 
+// Si Algolia está configurado, se llena el índice al arrancar (sin esperar a que un Admin lo sincronice).
+if (searchService.isConfigured && searchService.isConfigured()) {
+  Promise.resolve(searchService.syncAll(db))
+    .then((r) => console.log('[Búsqueda] Índice de Algolia sincronizado:', JSON.stringify(r)))
+    .catch((error) => console.warn('[Búsqueda] No se pudo sincronizar Algolia:', error.message));
+}
+
 // --- Asistente con respuesta progresiva (SSE) ------------------------------------
 app.post('/api/asistente', requireAuth, assistantRateLimit, asyncRoute(async (req, res) => {
   res.status(200).set({
