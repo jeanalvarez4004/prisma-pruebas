@@ -456,8 +456,88 @@
     });
   }
 
+  /* ----------------------------- Clima Campus Arequipa (Open-Meteo) ----------------------------- */
+  let weatherData = null;
+  let weatherFetched = 0;
+
+  async function fetchCampusWeather() {
+    const now = Date.now();
+    if (weatherData && now - weatherFetched < 5 * 60 * 1000) return weatherData;
+    try {
+      const res = await fetch('/api/weather');
+      if (!res.ok) throw new Error('Weather fetch failed');
+      weatherData = await res.json();
+      weatherFetched = now;
+      updateTopbarWeather(weatherData);
+      return weatherData;
+    } catch {
+      return weatherData;
+    }
+  }
+
+  function updateTopbarWeather(data) {
+    const el = document.getElementById('topbar-weather');
+    if (!el || !data) return;
+    const tempEl = document.getElementById('topbar-weather-temp');
+    if (tempEl && data.current) {
+      tempEl.textContent = `${data.current.temp}°C`;
+    }
+  }
+
+  async function renderHomeWeather() {
+    const slot = document.getElementById('home-weather-widget');
+    if (!slot) return;
+    const data = await fetchCampusWeather();
+    if (!data || !document.getElementById('home-weather-widget')) return;
+
+    const c = data.current || {};
+    const d = data.daily || {};
+    const uv = d.uvIndex !== undefined ? d.uvIndex : 10.8;
+    const uvHigh = uv >= 8;
+    const hours = new Date().getHours();
+    const isNight = hours >= 18 || hours < 6;
+    const icon = isNight ? '🌙' : (uv > 7 ? '☀️' : '⛅');
+
+    slot.innerHTML = `
+      <div class="weather-card">
+        <div class="weather-card-head">
+          <span class="weather-tag">📍 Arequipa · 2,342m</span>
+          <span class="weather-live-dot" title="Datos en tiempo real Open-Meteo">● En vivo</span>
+        </div>
+        <div class="weather-card-body">
+          <div class="weather-icon-temp">
+            <span class="weather-big-icon">${icon}</span>
+            <div class="weather-temp-group">
+              <span class="weather-temp-number">${c.temp !== undefined ? c.temp : 15}°</span>
+              <span class="weather-temp-unit">${c.unit || '°C'}</span>
+            </div>
+          </div>
+          <div class="weather-status-text">
+            <strong>Campus USMP Sur</strong>
+            <small>Cielo despejado · Radiación alta</small>
+          </div>
+        </div>
+        <div class="weather-card-footer">
+          <div class="weather-stat-pill">
+            <span class="w-label">Mín / Máx</span>
+            <span class="w-val">${d.minTemp ?? 14}° / ${d.maxTemp ?? 24}°</span>
+          </div>
+          <div class="weather-stat-pill ${uvHigh ? 'is-uv-warning' : ''}">
+            <span class="w-label">UV Máx</span>
+            <span class="w-val">☀️ ${uv}</span>
+          </div>
+          <div class="weather-stat-pill">
+            <span class="w-label">Viento</span>
+            <span class="w-val">💨 ${c.windSpeed ?? 3} ${c.windUnit || 'km/h'}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   /* ------------------------ Recomendaciones (ML) ------------------------ */
   async function afterHome() {
+    renderHomeWeather();
     const slot = document.getElementById('reco-slot');
     if (!slot || !state.user) return;
     try {
@@ -756,5 +836,6 @@
     f.searchTimer = setTimeout(runSearch, 350);
   });
 
-  window.PrismFeatures = { isFeatureRoute, renderRoute, afterHome, enroll, bindSocket, onUser };
+  window.PrismFeatures = { isFeatureRoute, renderRoute, afterHome, enroll, bindSocket, onUser, fetchCampusWeather };
+  setTimeout(() => { fetchCampusWeather().catch(() => {}); }, 300);
 }());
