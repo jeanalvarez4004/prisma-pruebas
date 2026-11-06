@@ -549,11 +549,11 @@
       const res = await fetch('/api/weather');
       if (res.ok) {
         const data = await res.json();
-        if (data && !data.fallback) {
+        if (data && data.current) {
           weatherData = data;
           weatherFetched = now;
           updateWeatherUI(weatherData);
-          return weatherData;
+          if (!data.fallback) return weatherData;
         }
       }
     } catch {}

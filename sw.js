@@ -1,4 +1,4 @@
-const CACHE = 'prism-v36-weather-dynamic';
+const CACHE = 'prism-v37-csp-openmeteo';
 const ASSETS = [
   './',
   './index.html',
