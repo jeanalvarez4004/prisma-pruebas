@@ -116,6 +116,77 @@ function analyzeSentiment(text) {
 }
 
 /* ------------------------------------------------------------------ */
+/* 2. Clasificación de Categorías de Publicaciones (Campus USMP)       */
+/* ------------------------------------------------------------------ */
+let categoryModel = null;
+
+function loadCategoryModel(csvPath = path.join(__dirname, '..', 'ml', 'categorias_posts.csv')) {
+  const rows = fs.readFileSync(csvPath, 'utf8')
+    .split(/\r?\n/)
+    .slice(1)
+    .map((line) => {
+      const index = line.indexOf(',');
+      return index > 0 ? { label: line.slice(0, index).trim(), text: line.slice(index + 1).trim() } : null;
+    })
+    .filter((row) => row && row.text);
+  return new SentimentModel().train(rows);
+}
+
+function classifyCategory(text) {
+  try {
+    if (!categoryModel) categoryModel = loadCategoryModel();
+    return categoryModel.predict(text);
+  } catch (error) {
+    console.warn('[ML] No se pudo clasificar la categoría:', error.message);
+    return null;
+  }
+}
+
+/**
+ * Asistente predictivo en tiempo real al redactar posts:
+ * Devuelve categoría recomendada, tono emocional y alerta de convivencia/toxicidad.
+ */
+function predictPostAssistant(text) {
+  if (!text || !text.trim()) {
+    return {
+      category: { label: 'General', probability: 0.5 },
+      sentiment: { label: 'neutral', probability: 0.5, tone: 'Neutro' },
+      isToxic: false,
+      warning: null,
+    };
+  }
+
+  const category = classifyCategory(text) || { label: 'General', probability: 0.5 };
+  const sentiment = analyzeSentiment(text) || { label: 'neutral', probability: 0.5 };
+
+  // Diccionario de términos hostiles / toxicidad para moderación preventiva
+  const toxicTerms = ['idiota', 'estupido', 'estúpido', 'incompetente', 'porqueria', 'mierda', 'basura', 'asco', 'maldito', 'fraude', 'ratero', 'ladron'];
+  const lower = text.toLowerCase();
+  const hasToxicTerm = toxicTerms.some((t) => lower.includes(t));
+  const isToxic = hasToxicTerm || (sentiment.label === 'negativo' && sentiment.probability >= 0.88);
+
+  let tone = 'Neutro / Informativo';
+  if (isToxic) tone = 'Alerta: Tono hostil / queja severa';
+  else if (sentiment.label === 'positivo') tone = 'Positivo / Entusiasta';
+  else if (sentiment.label === 'negativo') tone = 'Crítico / Disconforme';
+
+  return {
+    category: {
+      label: category.label,
+      probability: category.probability,
+      scores: category.scores,
+    },
+    sentiment: {
+      label: sentiment.label,
+      probability: sentiment.probability,
+      tone,
+    },
+    isToxic,
+    warning: isToxic ? 'Se detectó un tono potencialmente hostil. Te sugerimos mantener un lenguaje constructivo en el campus.' : null,
+  };
+}
+
+/* ------------------------------------------------------------------ */
 /* 2. Recomendaciones                                                  */
 /* ------------------------------------------------------------------ */
 function mulberry32(seed) {
@@ -241,5 +312,6 @@ function recommendActivities({ userId, interactions, activities, limit = 5, toda
 
 module.exports = {
   tokenize, SentimentModel, loadSentimentModel, analyzeSentiment,
+  loadCategoryModel, classifyCategory, predictPostAssistant,
   trainFactorization, recommendActivities,
 };
