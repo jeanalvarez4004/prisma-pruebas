@@ -1482,6 +1482,13 @@ app.get('/api/recomendaciones', requireAuth, (req, res) => {
   res.json({ recomendaciones });
 });
 
+// --- Asistente Predictivo de Publicaciones (ML en tiempo real) --------------------
+app.get('/api/ml/predict', requireAuth, (req, res) => {
+  const text = cleanText(req.query.text, 1000);
+  const prediction = mlService.predictPostAssistant(text);
+  res.json(prediction);
+});
+
 // --- Contacto con análisis de sentimiento (ML) ------------------------------------
 app.post('/api/contacto', requireAuth, contactRateLimit, (req, res) => {
   const subject = cleanText(req.body && req.body.subject, 120);

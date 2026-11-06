@@ -11,7 +11,18 @@ const cases = [
 for (const [text, expected] of cases) {
   const result = ml.analyzeSentiment(text);
   assert.strictEqual(result.label, expected, `"${text}" -> ${result.label}`);
-  console.log(`✔ ${expected.padEnd(8)} (${Math.round(result.probability * 100)}%)  ${text}`);
+  console.log(`✔ sentimiento: ${expected.padEnd(8)} (${Math.round(result.probability * 100)}%)  ${text}`);
+}
+
+const catCases = [
+  ['Quién se apunta para una pichanga de fútbol en la cancha del campus', 'Comunidad'],
+  ['Alguien tiene los ejercicios resueltos de Cálculo y Álgebra para el examen', 'Académico'],
+  ['A qué hora cierran la biblioteca de la universidad hoy viernes', 'General'],
+];
+for (const [text, expected] of catCases) {
+  const pred = ml.predictPostAssistant(text);
+  assert.strictEqual(pred.category.label, expected, `"${text}" -> ${pred.category.label}`);
+  console.log(`✔ categoría:   ${expected.padEnd(9)} (${Math.round(pred.category.probability * 100)}%)  ${text}`);
 }
 
 const interactions = [];
