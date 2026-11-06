@@ -1280,7 +1280,8 @@ app.post('/api/asistente', requireAuth, assistantRateLimit, asyncRoute(async (re
   const question = cleanText(lastUser && lastUser.content, 500);
   let userContext = '';
   try { userContext = memoryService.contextFor(db, req.user); } catch (error) { console.warn('[Memoria]', error.message); }
-  await assistantService.respond({ db, messages, send, signal: controller.signal, userContext });
+  const clientWeather = req.body && req.body.clientWeather;
+  await assistantService.respond({ db, messages, send, signal: controller.signal, userContext, clientWeather });
   if (question && answer.trim() && !controller.signal.aborted) {
     try { send({ type: 'logged', id: memoryService.logExchange(db, { userId: req.user.id, question, answer }) }); }
     catch (error) { console.warn('[Memoria] no se pudo guardar el intercambio:', error.message); }

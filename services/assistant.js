@@ -32,7 +32,7 @@ Responde siempre en español, de forma breve, cálida, organizada y clara.
 - Para preguntas sobre reglamentos, trámites, servicios o información de la universidad usa la herramienta buscar_conocimiento y responde SOLO con lo que devuelva. Si no hay información, dilo con claridad y no inventes.
 - Para preguntas sobre actividades, cupos o planes del campus usa consultar_actividades.
 - Para conversiones de moneda usa tipo_cambio.
-- Si preguntan por el clima, qué ponerse, o si les conviene una actividad (sobre todo al aire libre), o piden recomendaciones para hoy, usa clima_actual y recomienda según el clima real: explica brevemente el clima (temperatura, lluvia, UV, viento) y sugiere las actividades que devuelva la herramienta. No inventes datos del clima.
+- Si preguntan por el clima, qué ponerse, o si les conviene una actividad (sobre todo al aire libre), o piden recomendaciones para hoy, usa SIEMPRE la herramienta clima_actual y reporta con total exactitud la temperatura_actual_c, sensacion_termica_c y condicion que devuelva la herramienta. No inventes datos del clima ni uses mediciones antiguas.
 - No tienes herramientas para inscribir ni crear nada: indica al estudiante que pulse "Unirme" en la ficha o que lo haga desde Inicio.
 - Usa el contexto del estudiante para personalizar (por ejemplo sugerir actividades de sus intereses), sin repetirlo literalmente ni inventar datos sobre él.`;
 
@@ -155,7 +155,15 @@ async function runTool(name, args, ctx) {
     return { actividades: activities };
   }
   if (name === 'clima_actual') {
-    const { data } = await weather.getWeather();
+    let data;
+    // 1. Si el cliente envió el clima real obtenido directamente desde su navegador (sin rate-limit 429 de datacenter):
+    if (ctx.clientWeather && ctx.clientWeather.current && !ctx.clientWeather.fallback) {
+      data = ctx.clientWeather;
+    } else {
+      // 2. Si no, forzamos consulta en vivo al servidor (omitiendo caché):
+      const res = await weather.getWeather({ forceFresh: true });
+      data = (res.data && !res.data.fallback) ? res.data : (ctx.clientWeather || res.data);
+    }
     const advice = weather.advise(data);
     const seen = new Set();
     const sugeridas = [];
@@ -167,18 +175,21 @@ async function runTool(name, args, ctx) {
     for (const a of sugeridas) if (!ctx.cards.some((c) => c.id === a.id)) ctx.cards.push(a);
     return {
       lugar: data.location,
+      temperatura_actual_c: data.current.temp,
       temperatura_c: data.current.temp,
+      sensacion_termica_c: data.current.apparentTemp !== undefined ? data.current.apparentTemp : data.current.temp,
+      humedad_relativa: data.current.humidity !== undefined ? `${data.current.humidity}%` : undefined,
+      condicion_cielo: data.current.condition || advice.tipo,
       minima_c: data.daily.minTemp,
       maxima_c: data.daily.maxTemp,
       indice_uv: data.daily.uvIndex,
       viento_kmh: data.current.windSpeed,
       probabilidad_lluvia_6h: data.rain ? data.rain.probabilityNext6h : 0,
       lluvia_mm_6h: data.rain ? data.rain.mmNext6h : 0,
-      condicion: advice.tipo,
       consejos: advice.consejos,
       categorias_recomendadas: advice.categoriasSugeridas,
       actividades_recomendadas: sugeridas,
-      datos_de_respaldo: Boolean(data.fallback),
+      datos_en_vivo: !data.fallback,
     };
   }
   if (name === 'tipo_cambio') return exchangeRate(args);
@@ -259,9 +270,28 @@ async function answerWithGroq(ctx, history, send, signal) {
 
 /* ----------------------- Modo sin LLM (recuperación) ----------------------- */
 async function answerWithoutLlm(ctx, question, send) {
+  const parts = [];
+
+  // Si la pregunta es sobre el clima o temperatura, consultamos la herramienta de clima en tiempo real
+  if (/clima|temperatura|tiempo|llueve|lluvia|calor|fr[ií]o/i.test(question)) {
+    try {
+      const w = await runTool('clima_actual', {}, ctx);
+      parts.push('**Clima actual en Arequipa (Campus USMP)**\n');
+      parts.push('| PARÁMETRO | VALOR |');
+      parts.push('|---|---|');
+      parts.push(`| **Temperatura** | **${w.temperatura_actual_c} °C** (mín ${w.minima_c} °C – máx ${w.maxima_c} °C) |`);
+      parts.push(`| **Sensación térmica** | ${w.sensacion_termica_c} °C |`);
+      if (w.humedad_relativa) parts.push(`| **Humedad** | ${w.humedad_relativa} |`);
+      parts.push(`| **Condición** | ${w.condicion_cielo} |`);
+      parts.push(`| **Índice UV** | ${w.indice_uv} (${w.indice_uv >= 8 ? 'muy alto' : 'moderado'}) |`);
+      parts.push(`| **Viento** | ${w.viento_kmh} km/h |`);
+      parts.push(`| **Probabilidad lluvia (6h)** | ${w.probabilidad_lluvia_6h}% (${w.lluvia_mm_6h} mm) |\n`);
+      if (w.consejos?.length) parts.push(`💡 *${w.consejos[0]}*\n`);
+    } catch {}
+  }
+
   const [hits] = await Promise.all([knowledge.search(ctx.db, question, 3)]);
   const activities = queryActivities(ctx.db, { texto: question });
-  const parts = [];
   const good = hits.filter((h) => h.score >= 0.12);
   if (good.length) {
     parts.push('Esto es lo que encontré en los documentos del campus:\n');
@@ -284,10 +314,10 @@ async function answerWithoutLlm(ctx, question, send) {
 }
 
 /**
- * @param {{db, messages: {role, content}[], send: (event) => void, signal?: AbortSignal}} options
+ * @param {{db, messages: {role, content}[], send: (event) => void, signal?: AbortSignal, userContext?: string, clientWeather?: object}} options
  * Eventos: delta, sources, cards, done, error.
  */
-async function respond({ db, messages, send, signal, userContext = '' }) {
+async function respond({ db, messages, send, signal, userContext = '', clientWeather = null }) {
   const history = (Array.isArray(messages) ? messages : [])
     .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
     .slice(-10)
@@ -297,7 +327,7 @@ async function respond({ db, messages, send, signal, userContext = '' }) {
     send({ type: 'error', message: 'Escribe una pregunta.' });
     return;
   }
-  const ctx = { db, sources: [], cards: [], userContext };
+  const ctx = { db, sources: [], cards: [], userContext, clientWeather };
   try {
     if (isConfigured()) {
       let streamed = false;
