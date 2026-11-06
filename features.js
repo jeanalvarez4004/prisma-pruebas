@@ -460,35 +460,95 @@
   let weatherData = null;
   let weatherFetched = 0;
 
+  function updateWeatherUI(data) {
+    if (!data) return;
+    const c = data.current || {};
+    const d = data.daily || {};
+    const uv = d.uvIndex !== undefined ? d.uvIndex : 10.8;
+    const hours = new Date().getHours();
+    const isNight = hours >= 18 || hours < 6;
+    const icon = isNight ? '🌙' : (uv > 7 ? '☀️' : '⛅');
+
+    // 1. Barra superior
+    const tempEl = document.getElementById('topbar-weather-temp');
+    if (tempEl && c.temp !== undefined) {
+      tempEl.textContent = `${c.temp}°C`;
+    }
+
+    // 2. Pantalla de login / portada
+    const authTemp = document.getElementById('auth-w-temp');
+    const authIcon = document.getElementById('auth-w-icon');
+    if (authTemp && c.temp !== undefined) {
+      authTemp.textContent = `${c.temp}°C`;
+      if (authIcon) authIcon.textContent = icon;
+    }
+
+    // 3. Tarjeta en Inicio
+    renderHomeWeather(data);
+  }
+
   async function fetchCampusWeather() {
     const now = Date.now();
-    if (weatherData && now - weatherFetched < 5 * 60 * 1000) return weatherData;
-    try {
-      const res = await fetch('/api/weather');
-      if (!res.ok) throw new Error('Weather fetch failed');
-      weatherData = await res.json();
-      weatherFetched = now;
-      updateTopbarWeather(weatherData);
-      return weatherData;
-    } catch {
+    if (weatherData && now - weatherFetched < 5 * 60 * 1000) {
+      updateWeatherUI(weatherData);
       return weatherData;
     }
+
+    // Intento 1: Servidor propio /api/weather
+    try {
+      const res = await fetch('/api/weather');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && !data.fallback) {
+          weatherData = data;
+          weatherFetched = now;
+          updateWeatherUI(weatherData);
+          return weatherData;
+        }
+      }
+    } catch {}
+
+    // Intento 2: Consulta directa desde el navegador a Open-Meteo (CORS abierto y gratuito)
+    try {
+      const omUrl = 'https://api.open-meteo.com/v1/forecast?latitude=-16.399&longitude=-71.5375&daily=temperature_2m_max,temperature_2m_min,uv_index_clear_sky_max,moonrise,moonset,moon_phase&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,rain,snowfall&current=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m&timezone=auto';
+      const omRes = await fetch(omUrl);
+      if (omRes.ok) {
+        const d = await omRes.json();
+        weatherData = {
+          location: 'Arequipa, Perú (Campus USMP)',
+          elevation: d.elevation || 2342,
+          current: {
+            temp: d.current ? Math.round(d.current.temperature_2m * 10) / 10 : 19.6,
+            unit: '°C',
+            pressure: d.current ? d.current.pressure_msl : 1016,
+            windSpeed: d.current ? d.current.wind_speed_10m : 3,
+            windUnit: 'km/h',
+          },
+          daily: {
+            minTemp: d.daily ? d.daily.temperature_2m_min[0] : 12.4,
+            maxTemp: d.daily ? d.daily.temperature_2m_max[0] : 22.3,
+            uvIndex: d.daily ? d.daily.uv_index_clear_sky_max[0] : 10.75,
+          },
+          updatedAt: new Date().toISOString(),
+        };
+        weatherFetched = now;
+        updateWeatherUI(weatherData);
+        return weatherData;
+      }
+    } catch {}
+
+    return weatherData;
   }
 
   function updateTopbarWeather(data) {
-    const el = document.getElementById('topbar-weather');
-    if (!el || !data) return;
-    const tempEl = document.getElementById('topbar-weather-temp');
-    if (tempEl && data.current) {
-      tempEl.textContent = `${data.current.temp}°C`;
-    }
+    updateWeatherUI(data);
   }
 
-  async function renderHomeWeather() {
+  function renderHomeWeather(cached) {
     const slot = document.getElementById('home-weather-widget');
     if (!slot) return;
-    const data = await fetchCampusWeather();
-    if (!data || !document.getElementById('home-weather-widget')) return;
+    const data = cached || weatherData;
+    if (!data) return;
 
     const c = data.current || {};
     const d = data.daily || {};
@@ -520,7 +580,7 @@
         <div class="weather-card-footer">
           <div class="weather-stat-pill">
             <span class="w-label">Mín / Máx</span>
-            <span class="w-val">${d.minTemp ?? 14}° / ${d.maxTemp ?? 24}°</span>
+            <span class="w-val">${d.minTemp ?? 12.4}° / ${d.maxTemp ?? 22.3}°</span>
           </div>
           <div class="weather-stat-pill ${uvHigh ? 'is-uv-warning' : ''}">
             <span class="w-label">UV Máx</span>

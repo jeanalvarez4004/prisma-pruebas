@@ -728,7 +728,12 @@ app.get('/api/weather', asyncRoute(async (req, res) => {
   const url = 'https://api.open-meteo.com/v1/forecast?latitude=-16.399&longitude=-71.5375&daily=temperature_2m_max,temperature_2m_min,uv_index_clear_sky_max,moonrise,moonset,moon_phase&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,rain,snowfall&current=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m&timezone=auto';
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'PRISM-USMP-Campus/1.0 (https://github.com/jeanalvarez4004/prisma-pruebas)',
+        'Accept': 'application/json',
+      },
+    });
     if (!response.ok) throw new Error(`Open-Meteo responded with ${response.status}`);
     const data = await response.json();
 
