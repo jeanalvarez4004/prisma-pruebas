@@ -25,6 +25,8 @@
   const f = {
     chat: [],
     streaming: false,
+    assistantDraft: '',
+    contactDraft: { subject: '', message: '' },
     searchType: 'all',
     searchQuery: '',
     searchTimer: null,
@@ -289,7 +291,7 @@
           </div>
           ${empty ? `<div class="f-suggest">${SUGGESTIONS.map((s) => `<button type="button" class="f-chip" data-f="suggest" data-text="${esc(s)}">${esc(s)}</button>`).join('')}</div>` : ''}
           <form id="f-chat-form" class="f-chat-form">
-            <input id="f-chat-input" class="f-input f-grow" type="text" maxlength="500" placeholder="Escribe tu pregunta…" autocomplete="off" required ${f.streaming ? 'disabled' : ''} />
+            <input id="f-chat-input" class="f-input f-grow" type="text" maxlength="500" placeholder="Escribe tu pregunta…" autocomplete="off" required ${f.streaming ? 'disabled' : ''} value="${esc(f.assistantDraft || '')}" />
             <button class="primary-button" type="submit" ${f.streaming ? 'disabled' : ''}>Enviar</button>
           </form>
         </section>
@@ -420,7 +422,7 @@
     else showToast(`⚠️ No se pudo registrar en “${title}”${update.detail ? `: ${update.detail}` : ''}`, true);
     try {
       await refreshFeed();
-      if (currentRoute() === 'inicio') await renderPage();
+      if (currentRoute() === 'inicio' && (!window.isUserTyping || !window.isUserTyping())) await renderPage();
     } catch { /* se actualizará en el siguiente refresco */ }
   }
 
@@ -709,9 +711,9 @@
         <section class="surface-card f-card">
           <form id="f-contact-form">
             <label class="f-label" for="f-contact-subject">Asunto (opcional)</label>
-            <input id="f-contact-subject" class="f-input" maxlength="120" />
+            <input id="f-contact-subject" class="f-input" maxlength="120" value="${esc(f.contactDraft?.subject || '')}" />
             <label class="f-label" for="f-contact-message">Mensaje</label>
-            <textarea id="f-contact-message" class="f-textarea" minlength="10" maxlength="1500" required placeholder="Escribe aquí tu mensaje…"></textarea>
+            <textarea id="f-contact-message" class="f-textarea" minlength="10" maxlength="1500" required placeholder="Escribe aquí tu mensaje…">${esc(f.contactDraft?.message || '')}</textarea>
             <div class="f-row" style="margin-top:14px"><button class="primary-button" type="submit">Enviar mensaje</button></div>
           </form>
         </section>
@@ -728,6 +730,7 @@
       });
       showToast(`✉️ ${data.message}`);
       form.reset();
+      f.contactDraft = { subject: '', message: '' };
     } catch (error) {
       showToast(error.message, true);
     } finally {
@@ -996,6 +999,7 @@
       const input = document.getElementById('f-chat-input');
       const text = input.value;
       input.value = '';
+      f.assistantDraft = '';
       askAssistant(text);
     } else if (id === 'f-contact-form') {
       event.preventDefault();
@@ -1004,6 +1008,18 @@
   });
 
   document.addEventListener('input', (event) => {
+    if (event.target.id === 'f-chat-input') {
+      f.assistantDraft = event.target.value;
+      return;
+    }
+    if (event.target.id === 'f-contact-subject') {
+      f.contactDraft.subject = event.target.value;
+      return;
+    }
+    if (event.target.id === 'f-contact-message') {
+      f.contactDraft.message = event.target.value;
+      return;
+    }
     if (event.target.id !== 'f-search-q') return;
     f.searchQuery = event.target.value;
     clearTimeout(f.searchTimer);
