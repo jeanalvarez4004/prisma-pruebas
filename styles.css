@@ -2497,6 +2497,11 @@ h1, h2, .auth-card h2 { font-family: var(--serif); letter-spacing: -.01em; }
   font-size: 0.95rem;
   color: #ffffff;
 }
+.auth-w-condition {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 500;
+}
 .auth-w-city {
   color: rgba(255, 255, 255, 0.85);
   font-size: 0.78rem;
@@ -2752,7 +2757,7 @@ h1, h2, .auth-card h2 { font-family: var(--serif); letter-spacing: -.01em; }
 }
 .weather-card-footer {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(65px, 1fr));
   gap: 6px;
   padding-top: 10px;
   border-top: 1px solid rgba(234, 223, 227, 0.7);
