@@ -1,4 +1,4 @@
-const CACHE = 'prism-v35-design';
+const CACHE = 'prism-v36-weather-dynamic';
 const ASSETS = [
   './',
   './index.html',

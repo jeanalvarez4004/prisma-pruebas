@@ -457,27 +457,80 @@
   let weatherData = null;
   let weatherFetched = 0;
 
+  function parseWeatherCode(code, isNight) {
+    const c = Number(code);
+    switch (c) {
+      case 0:
+        return { condition: 'Cielo despejado', icon: isNight ? '🌙' : '☀️' };
+      case 1:
+        return { condition: 'Mayormente despejado', icon: isNight ? '🌤️' : '🌤️' };
+      case 2:
+        return { condition: 'Parcialmente nublado', icon: '⛅' };
+      case 3:
+        return { condition: 'Intervalos nubosos', icon: '☁️' };
+      case 45:
+      case 48:
+        return { condition: 'Neblina', icon: '🌫️' };
+      case 51:
+      case 53:
+      case 55:
+        return { condition: 'Llovizna leve', icon: '🌦️' };
+      case 61:
+      case 63:
+      case 65:
+        return { condition: 'Lluvia', icon: '🌧️' };
+      case 71:
+      case 73:
+      case 75:
+        return { condition: 'Nevada ligera', icon: '🌨️' };
+      case 80:
+      case 81:
+      case 82:
+        return { condition: 'Chubascos', icon: '🌧️' };
+      case 95:
+      case 96:
+      case 99:
+        return { condition: 'Tormenta eléctrica', icon: '⛈️' };
+      default:
+        return { condition: isNight ? 'Noche despejada' : 'Intervalos nubosos', icon: isNight ? '🌙' : '⛅' };
+    }
+  }
+
   function updateWeatherUI(data) {
     if (!data) return;
     const c = data.current || {};
     const d = data.daily || {};
-    const uv = d.uvIndex !== undefined ? d.uvIndex : 10.8;
+    const uv = d.uvIndex !== undefined ? d.uvIndex : 10.75;
     const hours = new Date().getHours();
     const isNight = hours >= 18 || hours < 6;
-    const icon = isNight ? '🌙' : (uv > 7 ? '☀️' : '⛅');
+    const parsed = parseWeatherCode(c.weatherCode ?? 3, isNight);
+    const icon = c.icon || parsed.icon;
+    const condition = c.condition || parsed.condition;
 
     // 1. Barra superior
     const tempEl = document.getElementById('topbar-weather-temp');
+    const topIcon = document.getElementById('topbar-weather-icon');
+    const topCity = document.getElementById('topbar-weather-city');
+    const topWrap = document.getElementById('topbar-weather');
     if (tempEl && c.temp !== undefined) {
       tempEl.textContent = `${c.temp}°C`;
+    }
+    if (topIcon) topIcon.textContent = icon;
+    if (topCity && condition) {
+      topCity.textContent = `Arequipa · ${condition}`;
+    }
+    if (topWrap) {
+      topWrap.title = `Clima Arequipa (Campus USMP): ${condition}, ${c.temp}°C (Sensación: ${c.apparentTemp ?? c.temp}°C)`;
     }
 
     // 2. Pantalla de login / portada
     const authTemp = document.getElementById('auth-w-temp');
     const authIcon = document.getElementById('auth-w-icon');
+    const authCond = document.getElementById('auth-w-condition');
     if (authTemp && c.temp !== undefined) {
       authTemp.textContent = `${c.temp}°C`;
       if (authIcon) authIcon.textContent = icon;
+      if (authCond) authCond.textContent = `· ${condition}`;
     }
 
     // 3. Tarjeta en Inicio
@@ -507,24 +560,38 @@
 
     // Intento 2: Consulta directa desde el navegador a Open-Meteo (CORS abierto y gratuito)
     try {
-      const omUrl = 'https://api.open-meteo.com/v1/forecast?latitude=-16.399&longitude=-71.5375&daily=temperature_2m_max,temperature_2m_min,uv_index_clear_sky_max,moonrise,moonset,moon_phase&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,rain,snowfall&current=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m&timezone=auto';
+      const omUrl = 'https://api.open-meteo.com/v1/forecast?latitude=-16.399&longitude=-71.5375'
+        + '&daily=temperature_2m_max,temperature_2m_min,uv_index_max,uv_index_clear_sky_max,moon_phase'
+        + '&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,rain'
+        + '&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m'
+        + '&timezone=auto';
       const omRes = await fetch(omUrl);
       if (omRes.ok) {
         const d = await omRes.json();
+        const hours = new Date().getHours();
+        const isNight = hours >= 18 || hours < 6;
+        const wCode = d.current?.weather_code !== undefined ? d.current.weather_code : 3;
+        const p = parseWeatherCode(wCode, isNight);
         weatherData = {
           location: 'Arequipa, Perú (Campus USMP)',
           elevation: d.elevation || 2342,
           current: {
-            temp: d.current ? Math.round(d.current.temperature_2m * 10) / 10 : 19.6,
+            temp: d.current ? Math.round(d.current.temperature_2m * 10) / 10 : 19.4,
+            apparentTemp: d.current?.apparent_temperature !== undefined ? Math.round(d.current.apparent_temperature * 10) / 10 : 17.4,
+            humidity: d.current?.relative_humidity_2m !== undefined ? Math.round(d.current.relative_humidity_2m) : 48,
             unit: '°C',
-            pressure: d.current ? d.current.pressure_msl : 1016,
-            windSpeed: d.current ? d.current.wind_speed_10m : 3,
+            weatherCode: wCode,
+            condition: p.condition,
+            icon: p.icon,
+            pressure: d.current ? (d.current.surface_pressure || d.current.pressure_msl || 1015.6) : 1015.6,
+            windSpeed: d.current ? Math.round(d.current.wind_speed_10m * 10) / 10 : 10.3,
             windUnit: 'km/h',
+            windDirection: d.current ? d.current.wind_direction_10m : 295,
           },
           daily: {
             minTemp: d.daily ? d.daily.temperature_2m_min[0] : 12.4,
             maxTemp: d.daily ? d.daily.temperature_2m_max[0] : 22.3,
-            uvIndex: d.daily ? d.daily.uv_index_clear_sky_max[0] : 10.75,
+            uvIndex: d.daily ? (d.daily.uv_index_max?.[0] ?? d.daily.uv_index_clear_sky_max?.[0] ?? 10.75) : 10.75,
           },
           updatedAt: new Date().toISOString(),
         };
@@ -549,11 +616,15 @@
 
     const c = data.current || {};
     const d = data.daily || {};
-    const uv = d.uvIndex !== undefined ? d.uvIndex : 10.8;
+    const uv = d.uvIndex !== undefined ? d.uvIndex : 10.75;
     const uvHigh = uv >= 8;
     const hours = new Date().getHours();
     const isNight = hours >= 18 || hours < 6;
-    const icon = isNight ? '🌙' : (uv > 7 ? '☀️' : '⛅');
+    const parsed = parseWeatherCode(c.weatherCode ?? 3, isNight);
+    const icon = c.icon || parsed.icon;
+    const condition = c.condition || parsed.condition;
+    const apparent = c.apparentTemp !== undefined ? `${c.apparentTemp}°C` : `${c.temp ?? 19.4}°C`;
+    const humidity = c.humidity !== undefined ? `${c.humidity}%` : '48%';
 
     slot.innerHTML = `
       <div class="weather-card">
@@ -565,16 +636,24 @@
           <div class="weather-icon-temp">
             <span class="weather-big-icon">${icon}</span>
             <div class="weather-temp-group">
-              <span class="weather-temp-number">${c.temp !== undefined ? c.temp : 15}°</span>
+              <span class="weather-temp-number">${c.temp !== undefined ? c.temp : 19.4}°</span>
               <span class="weather-temp-unit">${c.unit || '°C'}</span>
             </div>
           </div>
           <div class="weather-status-text">
-            <strong>Campus USMP Sur</strong>
-            <small>Cielo despejado · Radiación alta</small>
+            <strong>${condition}</strong>
+            <small>Campus USMP Sur · Sensación: ${apparent}</small>
           </div>
         </div>
         <div class="weather-card-footer">
+          <div class="weather-stat-pill">
+            <span class="w-label">Sensación</span>
+            <span class="w-val">🌡️ ${apparent}</span>
+          </div>
+          <div class="weather-stat-pill">
+            <span class="w-label">Humedad</span>
+            <span class="w-val">💧 ${humidity}</span>
+          </div>
           <div class="weather-stat-pill">
             <span class="w-label">Mín / Máx</span>
             <span class="w-val">${d.minTemp ?? 12.4}° / ${d.maxTemp ?? 22.3}°</span>
@@ -585,7 +664,7 @@
           </div>
           <div class="weather-stat-pill">
             <span class="w-label">Viento</span>
-            <span class="w-val">💨 ${c.windSpeed ?? 3} ${c.windUnit || 'km/h'}</span>
+            <span class="w-val">💨 ${c.windSpeed ?? 10.3} ${c.windUnit || 'km/h'}</span>
           </div>
         </div>
       </div>

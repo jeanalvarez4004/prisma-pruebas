@@ -5,9 +5,9 @@
  * Lo usan la ruta /api/weather (widget) y el asistente (herramienta clima_actual).
  */
 const URL = 'https://api.open-meteo.com/v1/forecast?latitude=-16.399&longitude=-71.5375'
-  + '&daily=temperature_2m_max,temperature_2m_min,uv_index_clear_sky_max,moon_phase'
-  + '&hourly=temperature_2m,precipitation_probability,rain'
-  + '&current=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m'
+  + '&daily=temperature_2m_max,temperature_2m_min,uv_index_max,uv_index_clear_sky_max,moon_phase'
+  + '&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,rain'
+  + '&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m'
   + '&timezone=auto';
 const TTL = 10 * 60 * 1000;
 
@@ -15,13 +15,68 @@ let cached = null;
 let cachedAt = 0;
 let lastOk = null; // true / false según el último intento
 
+function getWeatherCondition(code, isNight = false) {
+  const c = Number(code);
+  switch (c) {
+    case 0:
+      return { condition: 'Cielo despejado', icon: isNight ? '🌙' : '☀️' };
+    case 1:
+      return { condition: 'Mayormente despejado', icon: isNight ? '🌤️' : '🌤️' };
+    case 2:
+      return { condition: 'Parcialmente nublado', icon: '⛅' };
+    case 3:
+      return { condition: 'Intervalos nubosos', icon: '☁️' };
+    case 45:
+    case 48:
+      return { condition: 'Neblina', icon: '🌫️' };
+    case 51:
+    case 53:
+    case 55:
+      return { condition: 'Llovizna leve', icon: '🌦️' };
+    case 61:
+    case 63:
+    case 65:
+      return { condition: 'Lluvia', icon: '🌧️' };
+    case 71:
+    case 73:
+    case 75:
+      return { condition: 'Nevada ligera', icon: '🌨️' };
+    case 80:
+    case 81:
+    case 82:
+      return { condition: 'Chubascos', icon: '🌧️' };
+    case 95:
+    case 96:
+    case 99:
+      return { condition: 'Tormenta eléctrica', icon: '⛈️' };
+    default:
+      return { condition: isNight ? 'Noche despejada' : 'Intervalos nubosos', icon: isNight ? '🌙' : '⛅' };
+  }
+}
+
 function fallback() {
+  const hours = new Date().getHours();
+  const isNight = hours >= 18 || hours < 6;
+  const cond = getWeatherCondition(3, isNight);
   return {
     location: 'Arequipa, Perú (Campus USMP)',
     elevation: 2342,
-    current: { temp: 15.0, unit: '°C', pressure: 1016.1, windSpeed: 2.8, windUnit: 'km/h', windDirection: 105 },
-    daily: { minTemp: 14.3, maxTemp: 24.5, uvIndex: 10.8, moonPhase: 0.88 },
-    rain: { probabilityNext6h: 0, mmNext6h: 0 },
+    current: {
+      temp: 19.4,
+      apparentTemp: 17.4,
+      humidity: 48,
+      unit: '°C',
+      weatherCode: 3,
+      condition: cond.condition,
+      icon: cond.icon,
+      pressure: 1015.6,
+      windSpeed: 10.3,
+      windUnit: 'km/h',
+      windDirection: 295,
+      windGusts: 36,
+    },
+    daily: { minTemp: 12.4, maxTemp: 22.3, uvIndex: 10.75, moonPhase: 0.91 },
+    rain: { probabilityNext6h: 39, mmNext6h: 0 },
     updatedAt: new Date().toISOString(),
     fallback: true,
   };
@@ -54,24 +109,34 @@ async function getWeather() {
     });
     if (!response.ok) throw new Error(`Open-Meteo respondió ${response.status}`);
     const d = await response.json();
+    const hours = new Date().getHours();
+    const isNight = hours >= 18 || hours < 6;
+    const wCode = d.current?.weather_code !== undefined ? d.current.weather_code : 3;
+    const cond = getWeatherCondition(wCode, isNight);
+
     cached = {
       location: 'Arequipa, Perú (Campus USMP)',
       elevation: d.elevation || 2342,
       current: {
         time: d.current ? d.current.time : new Date().toISOString(),
-        temp: d.current ? Math.round(d.current.temperature_2m * 10) / 10 : 15,
+        temp: d.current ? Math.round(d.current.temperature_2m * 10) / 10 : 19.4,
+        apparentTemp: d.current?.apparent_temperature !== undefined ? Math.round(d.current.apparent_temperature * 10) / 10 : 17.4,
+        humidity: d.current?.relative_humidity_2m !== undefined ? Math.round(d.current.relative_humidity_2m) : 48,
         unit: d.current_units ? d.current_units.temperature_2m : '°C',
-        pressure: d.current ? d.current.pressure_msl : 1016,
-        windSpeed: d.current ? d.current.wind_speed_10m : 3,
+        weatherCode: wCode,
+        condition: cond.condition,
+        icon: cond.icon,
+        pressure: d.current ? (d.current.surface_pressure || d.current.pressure_msl || 1015.6) : 1015.6,
+        windSpeed: d.current ? Math.round(d.current.wind_speed_10m * 10) / 10 : 10.3,
         windUnit: d.current_units ? d.current_units.wind_speed_10m : 'km/h',
-        windDirection: d.current ? d.current.wind_direction_10m : 100,
+        windDirection: d.current ? d.current.wind_direction_10m : 295,
         windGusts: d.current ? d.current.wind_gusts_10m : null,
       },
       daily: {
-        minTemp: d.daily ? d.daily.temperature_2m_min[0] : 14,
-        maxTemp: d.daily ? d.daily.temperature_2m_max[0] : 24,
-        uvIndex: d.daily ? d.daily.uv_index_clear_sky_max[0] : 10.8,
-        moonPhase: d.daily ? d.daily.moon_phase[0] : 0.88,
+        minTemp: d.daily ? d.daily.temperature_2m_min[0] : 12.4,
+        maxTemp: d.daily ? d.daily.temperature_2m_max[0] : 22.3,
+        uvIndex: d.daily ? (d.daily.uv_index_max?.[0] ?? d.daily.uv_index_clear_sky_max?.[0] ?? 10.75) : 10.75,
+        moonPhase: d.daily ? d.daily.moon_phase[0] : 0.91,
       },
       rain: nextHours(d.hourly, d.current && d.current.time),
       updatedAt: new Date().toISOString(),
@@ -122,4 +187,4 @@ function status() {
   return { ok: lastOk, cachedAt: cachedAt || null };
 }
 
-module.exports = { getWeather, advise, status };
+module.exports = { getWeather, advise, status, getWeatherCondition };
