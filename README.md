@@ -25,9 +25,9 @@ Todos los módulos han sido verificados en el entorno de pruebas `prisma-pruebas
 
 ---
 
-## 🧩 Requisitos y Estado de Componentes (13 Módulos)
+## 🧩 Requisitos y Estado de Componentes (12 Módulos)
 
-De los 13 componentes de la arquitectura, **12 se encuentran completamente activos**, mientras que la cola externa de inscripciones se mantiene desactivada a nivel de CloudAMQP (operando con fallback en memoria a pedido):
+De los 12 componentes de la arquitectura, **todos se encuentran activos**. La cola de inscripciones (CloudAMQP) se retiró: las inscripciones ahora se procesan al instante.
 
 | # | Requisito | Estado | Dónde está | Cómo se implementó |
 | :-: | :--- | :---: | :--- | :--- |
@@ -43,7 +43,6 @@ De los 13 componentes de la arquitectura, **12 se encuentran completamente activ
 | **10** | **Tiempo Real (WebSockets)** | ✅ Activo | `server.js`, `app.js` (Socket.IO) | Conexión bidireccional Socket.IO autenticada por sesión, con salas individuales (`user:<id>`), chat en vivo del campus y notificaciones push reactivas. |
 | **11** | **Ramas en GitHub** | ✅ Hecho | Repositorio GitHub | Implementación de Git Flow con rama `main` y múltiples ramas `feature/*` temáticas. |
 | **12** | **Panel de Administración** | ✅ Hecho | `features.js`, `/api/admin/*` | Monitor en vivo de estado de servicios externos, carga de conocimiento RAG, sincronización de Algolia, reporte ML y moderación de aprendizaje. |
-| **13** | **Cola de Inscripciones** | ⚠️ Respaldo Local | `services/queue.js` | Operativa mediante cola en memoria; conexión externa a CloudAMQP desactivada a pedido. |
 
 ---
 

@@ -1068,7 +1068,7 @@ async function handleJoinActivity(id) {
   const known = (state.feed.activities || []).find((item) => String(item.id) === String(id));
   try {
     if (known && !known.joinedByMe && !known.isOwner && window.PrismFeatures) {
-      // Unirse: la solicitud se publica en la cola y se confirma en segundo plano.
+      // Unirse: la inscripción se registra al instante y se avisa con un mensaje.
       await window.PrismFeatures.enroll(id);
       return;
     }

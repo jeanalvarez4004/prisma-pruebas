@@ -10,6 +10,7 @@
  * documentos y las actividades, sin generar texto con un LLM.
  */
 const knowledge = require('./knowledge');
+const weather = require('./weather');
 const { fetchJson, normalizeText, sleep } = require('./http');
 
 const GROQ_URL = (process.env.GROQ_API_URL || 'https://api.groq.com/openai/v1').replace(/\/$/, '');
@@ -31,6 +32,7 @@ Responde siempre en español, de forma breve, cálida, organizada y clara.
 - Para preguntas sobre reglamentos, trámites, servicios o información de la universidad usa la herramienta buscar_conocimiento y responde SOLO con lo que devuelva. Si no hay información, dilo con claridad y no inventes.
 - Para preguntas sobre actividades, cupos o planes del campus usa consultar_actividades.
 - Para conversiones de moneda usa tipo_cambio.
+- Si preguntan por el clima, qué ponerse, o si les conviene una actividad (sobre todo al aire libre), o piden recomendaciones para hoy, usa clima_actual y recomienda según el clima real: explica brevemente el clima (temperatura, lluvia, UV, viento) y sugiere las actividades que devuelva la herramienta. No inventes datos del clima.
 - No tienes herramientas para inscribir ni crear nada: indica al estudiante que pulse "Unirme" en la ficha o que lo haga desde Inicio.
 - Usa el contexto del estudiante para personalizar (por ejemplo sugerir actividades de sus intereses), sin repetirlo literalmente ni inventar datos sobre él.`;
 
@@ -60,6 +62,14 @@ const TOOLS = [
           categoria: { type: 'string', enum: ['Deporte', 'Juego', 'Estudio', 'Transporte', 'Ayuda', 'Otro'] },
         },
       },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'clima_actual',
+      description: 'Clima actual del Campus Arequipa (temperatura, lluvia próximas horas, UV, viento) con consejos y actividades del campus recomendadas según ese clima.',
+      parameters: { type: 'object', properties: {} },
     },
   },
   {
@@ -143,6 +153,33 @@ async function runTool(name, args, ctx) {
     const activities = queryActivities(ctx.db, args);
     for (const a of activities) if (!ctx.cards.some((c) => c.id === a.id)) ctx.cards.push(a);
     return { actividades: activities };
+  }
+  if (name === 'clima_actual') {
+    const { data } = await weather.getWeather();
+    const advice = weather.advise(data);
+    const seen = new Set();
+    const sugeridas = [];
+    for (const categoria of advice.categoriasSugeridas) {
+      for (const a of queryActivities(ctx.db, { categoria }, 3)) {
+        if (!seen.has(a.id) && sugeridas.length < 4) { seen.add(a.id); sugeridas.push(a); }
+      }
+    }
+    for (const a of sugeridas) if (!ctx.cards.some((c) => c.id === a.id)) ctx.cards.push(a);
+    return {
+      lugar: data.location,
+      temperatura_c: data.current.temp,
+      minima_c: data.daily.minTemp,
+      maxima_c: data.daily.maxTemp,
+      indice_uv: data.daily.uvIndex,
+      viento_kmh: data.current.windSpeed,
+      probabilidad_lluvia_6h: data.rain ? data.rain.probabilityNext6h : 0,
+      lluvia_mm_6h: data.rain ? data.rain.mmNext6h : 0,
+      condicion: advice.tipo,
+      consejos: advice.consejos,
+      categorias_recomendadas: advice.categoriasSugeridas,
+      actividades_recomendadas: sugeridas,
+      datos_de_respaldo: Boolean(data.fallback),
+    };
   }
   if (name === 'tipo_cambio') return exchangeRate(args);
   return { error: `Herramienta desconocida: ${name}` };
