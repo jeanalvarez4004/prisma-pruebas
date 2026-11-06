@@ -1,4 +1,4 @@
-const CACHE = 'prism-v38-ipv4-weather-live';
+const CACHE = 'prism-v39-assistant-live-weather';
 const ASSETS = [
   './',
   './index.html',

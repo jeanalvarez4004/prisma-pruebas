@@ -340,11 +340,16 @@
 
     const history = f.chat.slice(0, -1).slice(-8).map((m) => ({ role: m.role, content: m.content })).filter((m) => m.content);
     try {
+      // Obtenemos la medición meteorológica más reciente para que el asistente tenga los datos exactos en tiempo real
+      const currentCampusWeather = weatherData || await fetchCampusWeather().catch(() => null);
       const response = await fetch('/api/asistente', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ messages: history }),
+        body: JSON.stringify({
+          messages: history,
+          clientWeather: currentCampusWeather && currentCampusWeather.current ? currentCampusWeather : null,
+        }),
       });
       if (!response.ok || !(response.headers.get('content-type') || '').includes('text/event-stream')) {
         const payload = await response.json().catch(() => ({}));

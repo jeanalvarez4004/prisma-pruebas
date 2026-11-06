@@ -63,25 +63,40 @@ function fallback() {
   const hours = new Date().getHours();
   const isNight = hours >= 18 || hours < 6;
   const cond = getWeatherCondition(3, isNight);
+
+  // Estimación horaria realista para Arequipa cuando Open-Meteo sufra rate-limit temporal (429)
+  let estTemp = 17.6;
+  let estApparent = 16.0;
+  let estHum = 54;
+  if (hours >= 11 && hours < 16) {
+    estTemp = 21.4;
+    estApparent = 19.2;
+    estHum = 42;
+  } else if (hours >= 19 || hours < 7) {
+    estTemp = 13.5;
+    estApparent = 12.0;
+    estHum = 65;
+  }
+
   return {
     location: 'Arequipa, Perú (Campus USMP)',
     elevation: 2342,
     current: {
-      temp: 19.4,
-      apparentTemp: 17.4,
-      humidity: 48,
+      temp: estTemp,
+      apparentTemp: estApparent,
+      humidity: estHum,
       unit: '°C',
       weatherCode: 3,
       condition: cond.condition,
       icon: cond.icon,
       pressure: 1015.6,
-      windSpeed: 10.3,
+      windSpeed: 9.5,
       windUnit: 'km/h',
       windDirection: 295,
-      windGusts: 36,
+      windGusts: 32,
     },
     daily: { minTemp: 12.4, maxTemp: 22.3, uvIndex: 10.75, moonPhase: 0.91 },
-    rain: { probabilityNext6h: 39, mmNext6h: 0 },
+    rain: { probabilityNext6h: 30, mmNext6h: 0 },
     updatedAt: new Date().toISOString(),
     fallback: true,
   };
@@ -100,10 +115,10 @@ function nextHours(hourly, currentTime, count = 6) {
   };
 }
 
-/** Devuelve { data, cache: 'HIT' | 'MISS' | 'STALE' | 'FALLBACK' }. */
-async function getWeather() {
+/** Devuelve { data, cache: 'HIT' | 'MISS' | 'STALE' | 'FALLBACK' }. Si forceFresh = true, omite la caché. */
+async function getWeather({ forceFresh = false } = {}) {
   const nowMs = Date.now();
-  if (cached && nowMs - cachedAt < TTL) return { data: cached, cache: 'HIT' };
+  if (!forceFresh && cached && nowMs - cachedAt < TTL) return { data: cached, cache: 'HIT' };
   try {
     const response = await fetch(URL, {
       signal: AbortSignal.timeout(8000),
