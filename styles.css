@@ -2949,3 +2949,37 @@ h1, h2, .auth-card h2 { font-family: var(--serif); letter-spacing: -.01em; }
   0% { outline: 3px solid rgba(179, 19, 43, 0.5); }
   100% { outline: 0px solid transparent; }
 }
+
+/* --- Panel de administración v2 --- */
+.f-health { display: flex; align-items: center; gap: 10px; padding: 12px 14px; margin: 10px 0 16px; border-radius: 14px; background: #fff7f8; border: 1px solid var(--line); }
+.f-health.is-ok { background: #eef9f3; border-color: #cfe9da; }
+.f-health .text-button { margin-left: auto; }
+.f-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.f-kpi { padding: 16px 12px; border-radius: 16px; border: 1px solid var(--line); background: #fff; text-align: center; box-shadow: var(--shadow-soft); display: grid; gap: 4px; }
+.f-kpi b { font-family: var(--serif); font-size: 2rem; line-height: 1; color: var(--accent); }
+.f-kpi span { font-size: .84rem; color: var(--muted); }
+.f-bars-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.f-bars-block h3 { font-size: .95rem; margin: 0 0 8px; text-align: center; }
+.f-bars { display: flex; align-items: flex-end; gap: 6px; height: 120px; padding: 8px 6px 0; border-radius: 14px; background: var(--bg-soft); border: 1px solid var(--line); }
+.f-bar { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 3px; }
+.f-bar i { display: block; width: 100%; border-radius: 6px 6px 0 0; background: linear-gradient(180deg, #c4172f, #8f0f22); min-height: 4px; }
+.f-bar-n { font-size: .7rem; color: var(--muted); }
+.f-bar small { font-size: .7rem; color: var(--muted); padding-bottom: 4px; }
+.f-cats { display: grid; gap: 8px; margin-top: 8px; }
+.f-cat { display: grid; grid-template-columns: 110px 1fr 32px; align-items: center; gap: 10px; font-size: .9rem; }
+.f-cat-track { height: 10px; border-radius: 999px; background: var(--accent-soft); overflow: hidden; }
+.f-cat-track i { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
+.f-cat b { text-align: right; }
+@media (max-width: 760px) {
+  .f-kpis { grid-template-columns: repeat(2, 1fr); }
+  .f-bars-grid { grid-template-columns: 1fr; }
+  .f-cat { grid-template-columns: 90px 1fr 28px; }
+  .f-tabs { overflow-x: auto; flex-wrap: nowrap; justify-content: flex-start; padding-bottom: 4px; }
+  .f-tabs .f-chip { flex: none; }
+}
+.topbar-weather-temp, .topbar-weather { white-space: nowrap; }
+@media (max-width: 560px) {
+  .topbar-weather-city { display: none; }
+  .topbar-weather { padding: 6px 10px; gap: 6px; }
+  .topbar-actions > #sound-toggle { display: none; }
+}

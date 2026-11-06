@@ -262,7 +262,7 @@ const searchService = require('./services/search');
 const knowledgeService = require('./services/knowledge');
 const documentsService = require('./services/documents');
 const assistantService = require('./services/assistant');
-const queueService = require('./services/queue');
+const weatherService = require('./services/weather');
 const mlService = require('./services/ml');
 const memoryService = require('./services/memory');
 
@@ -713,67 +713,11 @@ app.get('/api/view-data', (req, res) => {
   });
 });
 
-// Clima en vivo del Campus Arequipa (Open-Meteo API) con caché en memoria / HTTP headers
-let cachedWeather = null;
-let cachedWeatherTime = 0;
-
+// Clima en vivo del Campus Arequipa (Open-Meteo): ver services/weather.js
 app.get('/api/weather', asyncRoute(async (req, res) => {
-  const nowMs = Date.now();
-  // Caché de 10 minutos
-  if (cachedWeather && (nowMs - cachedWeatherTime < 10 * 60 * 1000)) {
-    res.setHeader('X-Cache', 'HIT');
-    return res.json(cachedWeather);
-  }
-
-  const url = 'https://api.open-meteo.com/v1/forecast?latitude=-16.399&longitude=-71.5375&daily=temperature_2m_max,temperature_2m_min,uv_index_clear_sky_max,moonrise,moonset,moon_phase&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,rain,snowfall&current=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m&timezone=auto';
-
-  try {
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'PRISM-USMP-Campus/1.0 (https://github.com/jeanalvarez4004/prisma-pruebas)',
-        'Accept': 'application/json',
-      },
-    });
-    if (!response.ok) throw new Error(`Open-Meteo responded with ${response.status}`);
-    const data = await response.json();
-
-    cachedWeather = {
-      location: 'Arequipa, Perú (Campus USMP)',
-      elevation: data.elevation || 2342,
-      current: {
-        time: data.current ? data.current.time : new Date().toISOString(),
-        temp: data.current ? Math.round(data.current.temperature_2m * 10) / 10 : 15,
-        unit: data.current_units ? data.current_units.temperature_2m : '°C',
-        pressure: data.current ? data.current.pressure_msl : 1016,
-        windSpeed: data.current ? data.current.wind_speed_10m : 3,
-        windUnit: data.current_units ? data.current_units.wind_speed_10m : 'km/h',
-        windDirection: data.current ? data.current.wind_direction_10m : 100,
-      },
-      daily: {
-        minTemp: data.daily ? data.daily.temperature_2m_min[0] : 14,
-        maxTemp: data.daily ? data.daily.temperature_2m_max[0] : 24,
-        uvIndex: data.daily ? data.daily.uv_index_clear_sky_max[0] : 10.8,
-        moonPhase: data.daily ? data.daily.moon_phase[0] : 0.88,
-      },
-      updatedAt: new Date().toISOString(),
-    };
-    cachedWeatherTime = nowMs;
-    res.setHeader('X-Cache', 'MISS');
-    res.json(cachedWeather);
-  } catch (err) {
-    if (cachedWeather) {
-      res.setHeader('X-Cache', 'STALE');
-      return res.json(cachedWeather);
-    }
-    res.json({
-      location: 'Arequipa, Perú (Campus USMP)',
-      elevation: 2342,
-      current: { temp: 15.0, unit: '°C', pressure: 1016.1, windSpeed: 2.8, windUnit: 'km/h', windDirection: 105 },
-      daily: { minTemp: 14.3, maxTemp: 24.5, uvIndex: 10.8, moonPhase: 0.88 },
-      updatedAt: new Date().toISOString(),
-      fallback: true,
-    });
-  }
+  const { data, cache } = await weatherService.getWeather();
+  res.setHeader('X-Cache', cache === 'FALLBACK' ? 'MISS' : cache);
+  res.json(data);
 }));
 
 // Tópico Temp Data / Flash Messages (Mensajes temporales de consumo único almacenados en Redis)
@@ -1418,8 +1362,9 @@ app.post('/api/inscripciones', requireAuth, enrollRateLimit, asyncRoute(async (r
   `).run(activityId, req.user.id, stamp, stamp);
   const enrollmentId = Number(result.lastInsertRowid);
 
-  const transport = await queueService.publish({ type: 'enrollment', enrollmentId });
-  res.status(202).json({ inscripcion: serializeEnrollment(getEnrollment(enrollmentId)), cola: transport });
+  await processEnrollment({ type: 'enrollment', enrollmentId });
+  const final = getEnrollment(enrollmentId);
+  res.status(201).json({ inscripcion: serializeEnrollment(final) });
 }));
 
 app.get('/api/inscripciones/mias', requireAuth, (req, res) => {
@@ -1437,7 +1382,7 @@ function finishEnrollment(row, status, detail) {
   });
 }
 
-// Consumidor de la cola: corre en el mismo proceso que el servidor web.
+// Procesa la inscripción al instante (reserva el cupo y avisa al dueño de la actividad).
 async function processEnrollment(message) {
   if (!message || message.type !== 'enrollment') return;
   const row = getEnrollment(message.enrollmentId);
@@ -1465,11 +1410,10 @@ async function processEnrollment(message) {
     if (outcome.notifyOwner) io.to(userRoom(outcome.notifyOwner)).emit('notification:new', { type: 'activity' });
     await invalidateFeedCache();
   } catch (error) {
-    if ((message.attempts || 1) >= 3) finishEnrollment(row, 'rechazado', 'No se pudo procesar la inscripción. Inténtalo de nuevo.');
+    finishEnrollment(row, 'rechazado', 'No se pudo procesar la inscripción. Inténtalo de nuevo.');
     throw error;
   }
 }
-queueService.startConsumer(processEnrollment);
 
 // --- Recomendaciones (ML: factorización de matrices) -------------------------------
 app.get('/api/recomendaciones', requireAuth, (req, res) => {
@@ -1510,7 +1454,7 @@ app.post('/api/contacto', requireAuth, contactRateLimit, (req, res) => {
 // --- Administración ---------------------------------------------------------------
 app.get('/api/admin/estado', requireAdmin, asyncRoute(async (req, res) => {
   const ping = await redis.ping();
-  const queue = queueService.status();
+  const clima = weatherService.status();
   const documents = knowledgeService.listDocuments(db).length;
   const servicios = [
     { nombre: databaseMode === 'turso' ? 'Base de datos (Turso)' : 'Base de datos (SQLite local)', activo: databaseMode === 'turso', detalle: databaseMode === 'turso' ? 'Datos persistentes en Turso' : 'Archivo local: se borra en cada reinicio de Render' },
@@ -1518,12 +1462,53 @@ app.get('/api/admin/estado', requireAdmin, asyncRoute(async (req, res) => {
     { nombre: 'Búsqueda (Algolia)', activo: searchService.isConfigured(), detalle: searchService.isConfigured() ? 'Índice de publicaciones y actividades' : 'Sin configurar: se busca directamente en SQLite' },
     { nombre: 'Asistente (Groq)', activo: assistantService.isConfigured(), detalle: assistantService.isConfigured() ? 'Respuestas redactadas por IA con herramientas' : 'Sin GROQ_API_KEY: modo básico de recuperación' },
     { nombre: 'Conocimiento (Qdrant)', activo: knowledgeService.isQdrantConfigured(), detalle: `${documents} documento(s) · embeddings: ${knowledgeService.embeddingsMode()}` },
-    { nombre: 'Cola de inscripciones (CloudAMQP)', activo: queue.mode === 'cloudamqp', detalle: queue.lastError ? `Error: ${queue.lastError}` : `Modo ${queue.mode} · cola ${queue.queue}` },
+    { nombre: 'Clima (Open-Meteo)', activo: clima.ok !== false, detalle: clima.cachedAt ? `Actualizado ${new Date(clima.cachedAt).toLocaleTimeString('es-PE')}` : 'Sin consultas todavía' },
     { nombre: 'Notificaciones en vivo (Socket.IO)', activo: true, detalle: `${io.engine.clientsCount} cliente(s) conectado(s)` },
     { nombre: 'Machine Learning', activo: true, detalle: 'Sentimiento (Naive Bayes) y recomendaciones (factorización de matrices)' },
   ];
   res.json({ servicios });
 }));
+
+app.get('/api/admin/resumen', requireAdmin, (req, res) => {
+  const count = (sql) => db.prepare(sql).get().n;
+  const totales = {
+    usuarios: count('SELECT COUNT(*) AS n FROM users'),
+    publicaciones: count('SELECT COUNT(*) AS n FROM posts'),
+    actividades: count('SELECT COUNT(*) AS n FROM activities'),
+    inscripciones: count("SELECT COUNT(*) AS n FROM enrollments WHERE status = 'registrado'"),
+    mensajes: count('SELECT COUNT(*) AS n FROM contact_messages'),
+    preguntas: count('SELECT COUNT(*) AS n FROM assistant_logs'),
+    documentos: count('SELECT COUNT(*) AS n FROM knowledge_docs'),
+    pendientes: count('SELECT COUNT(*) AS n FROM assistant_logs WHERE rating = 1 AND approved = 0'),
+  };
+  const days = [];
+  for (let i = 6; i >= 0; i -= 1) days.push(new Date(Date.now() - i * 86400000).toISOString().slice(0, 10));
+  const perDay = (table, extra = '') => {
+    const rows = db.prepare(`SELECT substr(created_at, 1, 10) AS d, COUNT(*) AS n FROM ${table} WHERE created_at >= ? ${extra} GROUP BY d`).all(`${days[0]}T00:00:00`);
+    const map = new Map(rows.map((r) => [r.d, r.n]));
+    return days.map((d) => map.get(d) || 0);
+  };
+  res.json({
+    totales,
+    dias: days,
+    serie: {
+      usuarios: perDay('users'),
+      publicaciones: perDay('posts'),
+      preguntas: perDay('assistant_logs'),
+    },
+    categorias: db.prepare('SELECT category AS nombre, COUNT(*) AS n FROM activities GROUP BY category ORDER BY n DESC').all(),
+  });
+});
+
+app.get('/api/admin/usuarios', requireAdmin, (req, res) => {
+  const usuarios = db.prepare(`
+    SELECT u.id, u.name, u.email, u.career, u.role, u.created_at AS createdAt,
+           (SELECT COUNT(*) FROM posts p WHERE p.user_id = u.id) AS publicaciones,
+           (SELECT COUNT(*) FROM activity_members m WHERE m.user_id = u.id) AS actividades
+    FROM users u ORDER BY u.created_at DESC LIMIT 200
+  `).all();
+  res.json({ usuarios });
+});
 
 app.get('/api/admin/conocimiento', requireAdmin, (req, res) => {
   res.json({ documentos: knowledgeService.listDocuments(db) });

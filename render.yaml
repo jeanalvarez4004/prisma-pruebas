@@ -35,8 +35,6 @@ services:
         sync: false
       - key: QDRANT_API_KEY
         sync: false
-      - key: CLOUDAMQP_URL
-        sync: false
     # Descomenta este bloque en un plan pago para persistir SQLite:
     # disk:
     #   name: prism-data

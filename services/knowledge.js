@@ -105,6 +105,12 @@ async function ensureCollection(cfg, provider, dim) {
     } catch (error) {
       if (!/already exists|409/i.test(error.message)) throw error;
     }
+    // Índice por doc_id: sin él Qdrant rechaza los borrados filtrados por documento.
+    try {
+      await qdrant(cfg, `/collections/${name}/index?wait=true`, 'PUT', { field_name: 'doc_id', field_schema: 'integer' });
+    } catch (error) {
+      console.warn('[Conocimiento] No se pudo crear el índice doc_id en Qdrant:', error.message);
+    }
     ensured.add(name);
   }
   return name;
@@ -197,6 +203,21 @@ async function syncToQdrant(db) {
       console.warn('[Conocimiento] No se pudo sincronizar con Qdrant:', error.message);
       break;
     }
+  }
+  // Limpia vectores huérfanos (documentos que ya no existen en la base).
+  try {
+    const ids = db.prepare('SELECT id FROM knowledge_docs').all().map((r) => r.id);
+    const combos = db.prepare('SELECT DISTINCT provider, dim FROM knowledge_chunks').all();
+    if (ids.length) {
+      for (const c of combos) {
+        const collection = await ensureCollection(cfg, c.provider, c.dim);
+        await qdrant(cfg, `/collections/${collection}/points/delete?wait=true`, 'POST', {
+          filter: { must_not: [{ key: 'doc_id', match: { any: ids } }] },
+        });
+      }
+    }
+  } catch (error) {
+    console.warn('[Conocimiento] No se pudo limpiar Qdrant:', error.message);
   }
   return { synced };
 }

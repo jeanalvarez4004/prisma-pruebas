@@ -9,7 +9,7 @@ En la pantalla inicial pulsa "Crear cuenta", escribe tu nombre, correo, carrera 
 Es la página principal. Arriba están las historias del campus: fotos que duran 24 horas y se suben con la cámara del teléfono o del computador. Debajo puedes publicar un mensaje con una categoría (General, Académico o Comunidad) y, si quieres, una foto. Las publicaciones de todos aparecen en el feed y puedes darles "me gusta". Solo tú puedes eliminar tus publicaciones.
 
 ## Actividades
-Una actividad es un plan que organizas con otros estudiantes, por ejemplo un partido de fútbol, un grupo de estudio o compartir transporte. Pulsa "Crear actividad", escribe el título, la categoría (Deporte, Juego, Estudio, Transporte, Ayuda u Otro), cuántas personas necesitas (de 1 a 50), el lugar y la fecha. Para unirte a una actividad pulsa "Unirme": tu inscripción pasa por una cola y en unos segundos recibes el aviso "Registrado". Si ya no quedan cupos, el sistema te avisa. Puedes salir de una actividad en la que participas, salvo que seas quien la creó.
+Una actividad es un plan que organizas con otros estudiantes, por ejemplo un partido de fútbol, un grupo de estudio o compartir transporte. Pulsa "Crear actividad", escribe el título, la categoría (Deporte, Juego, Estudio, Transporte, Ayuda u Otro), cuántas personas necesitas (de 1 a 50), el lugar y la fecha. Para unirte a una actividad pulsa "Unirme": tu inscripción se registra al instante y recibes el aviso "Registrado". Si ya no quedan cupos, el sistema te avisa. Puedes salir de una actividad en la que participas, salvo que seas quien la creó.
 
 ## Recomendado para ti
 En Inicio aparecen actividades sugeridas. El sistema aprende de las actividades a las que te unes y de lo que hacen estudiantes con intereses parecidos, así que mientras más participas mejores son las sugerencias.
@@ -22,6 +22,9 @@ Busca publicaciones y actividades por palabra clave. Puedes filtrar por "Publica
 
 ## Asistente IA
 PRISM Bot responde preguntas sobre la universidad, sobre las actividades disponibles, sobre cómo usar PRISM y sobre tipo de cambio. Recuerda tus intereses para darte respuestas más útiles. Debajo de cada respuesta puedes marcar "Me sirvió" o "No me sirvió": con eso el asistente aprende qué respuestas son buenas.
+
+## Clima del campus
+En la portada de Inicio y en la barra superior aparece el clima de Arequipa en vivo (temperatura, radiación UV, viento y lluvia). El Asistente IA usa ese clima para recomendarte actividades: si va a llover o hace mucho viento te sugiere planes bajo techo, y si el día está agradable, actividades al aire libre.
 
 ## Contacto
 Escribe una consulta, sugerencia o reclamo. El equipo la revisa desde Administración y el sistema analiza si el mensaje es positivo, neutral o negativo.

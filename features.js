@@ -4,7 +4,7 @@
  * Funciones añadidas a PRISM (se carga después de app.js y reutiliza sus helpers globales):
  *  - Buscar (Algolia / SQLite)
  *  - Asistente IA con respuesta progresiva, fuentes y fichas de actividades
- *  - Inscripciones en cola (en cola -> registrado) con aviso en vivo
+ *  - Inscripciones con confirmación inmediata y aviso en vivo
  *  - Recomendaciones de actividades (ML) en Inicio
  *  - Contacto con análisis de sentimiento
  *  - Panel de Administración (servicios, documentos, índice de búsqueda, reportes)
@@ -29,7 +29,7 @@
     searchQuery: '',
     searchTimer: null,
     searchSeq: 0,
-    adminTab: 'estado',
+    adminTab: 'resumen',
     pending: new Map(), // id -> { title }
     pollTimer: null,
   };
@@ -387,7 +387,7 @@
     }
   }
 
-  /* ------------------------- Inscripciones en cola ------------------------- */
+  /* ------------------------- Inscripciones ------------------------- */
   function renderPending() {
     let box = document.getElementById('f-pending');
     if (!f.pending.size) { if (box) box.remove(); return; }
@@ -400,7 +400,10 @@
     box.innerHTML = [...f.pending.values()].map((p) => `<div class="f-pending-item">⏳ En cola: ${esc(p.title)}</div>`).join('');
   }
 
+  const doneEnrollments = new Set();
   async function resolveEnrollment(update) {
+    if (doneEnrollments.has(update.id) && update.status !== 'en_cola') return;
+    if (update.status !== 'en_cola') doneEnrollments.add(update.id);
     if (!f.pending.has(update.id) && update.status === 'en_cola') return;
     if (update.status === 'en_cola') return;
     const known = f.pending.get(update.id);
@@ -434,13 +437,7 @@
     try {
       const data = await request('/api/inscripciones', { method: 'POST', body: { activityId: Number(activityId) } });
       const item = data.inscripcion;
-      if (item.status === 'en_cola') {
-        f.pending.set(item.id, { title: item.activityTitle || 'la actividad' });
-        renderPending();
-        showToast(`⏳ Tu inscripción${item.activityTitle ? ` a “${item.activityTitle}”` : ''} está en cola`);
-        clearTimeout(f.pollTimer);
-        f.pollTimer = setTimeout(pollPending, 3000);
-      }
+      await resolveEnrollment({ id: item.id, title: item.activityTitle, status: item.status, detail: item.detail });
     } catch (error) {
       showToast(error.message, true);
     }
@@ -655,7 +652,9 @@
   }
 
   /* --------------------------- Administración --------------------------- */
-  const ADMIN_TABS = [['estado', 'Servicios'], ['conocimiento', 'Conocimiento'], ['busqueda', 'Índice de búsqueda'], ['reportes', 'Reportes'], ['aprendizaje', 'Aprendizaje']];
+  const ADMIN_TABS = [['resumen', 'Resumen'], ['estado', 'Servicios'], ['usuarios', 'Usuarios'], ['conocimiento', 'Conocimiento'], ['busqueda', 'Índice de búsqueda'], ['reportes', 'Reportes'], ['aprendizaje', 'Aprendizaje']];
+  const plain = (text) => String(text || '').replace(/\|?\s*:?-{2,}:?\s*(?=\|)/g, ' ').replace(/[|*#`>_]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const ROLE_LABEL = { admin: 'Administrador', user: 'Estudiante' };
 
   function renderAdmin() {
     if (!isAdmin()) {
@@ -664,7 +663,7 @@
     }
     page().innerHTML = `
       <div class="f-page">
-        ${head('Administración', 'Panel de control', 'Servicios, documentos del asistente, índice de búsqueda y reportes.')}
+        ${head('Administración', 'Panel de control', 'Resumen de la comunidad, estado de los servicios, usuarios, documentos del asistente y reportes.')}
         <div class="f-tabs">${ADMIN_TABS.map(([id, label]) => `<button type="button" class="f-chip ${f.adminTab === id ? 'is-active' : ''}" data-f="admin-tab" data-v="${id}">${label}</button>`).join('')}</div>
         <section id="f-admin-body" class="surface-card f-card"><span class="f-muted">Cargando…</span></section>
       </div>`;
@@ -674,10 +673,39 @@
   async function loadAdminTab() {
     const body = () => document.getElementById('f-admin-body');
     try {
-      if (f.adminTab === 'estado') {
+      if (f.adminTab === 'resumen') {
+        const [data, est] = await Promise.all([request('/api/admin/resumen'), request('/api/admin/estado')]);
+        if (!body()) return;
+        const t = data.totales;
+        const on = est.servicios.filter((s) => s.activo).length;
+        const kpi = [['Estudiantes', t.usuarios], ['Publicaciones', t.publicaciones], ['Actividades', t.actividades], ['Inscripciones', t.inscripciones], ['Preguntas a la IA', t.preguntas], ['Mensajes de contacto', t.mensajes], ['Documentos de la IA', t.documentos], ['Por enseñar a la IA', t.pendientes]];
+        const dayLabel = (d) => ['D', 'L', 'M', 'X', 'J', 'V', 'S'][new Date(`${d}T12:00:00`).getDay()];
+        const series = [['Registros', data.serie.usuarios], ['Publicaciones', data.serie.publicaciones], ['Preguntas a la IA', data.serie.preguntas]];
+        const bars = ([label, values]) => {
+          const max = Math.max(1, ...values);
+          return `<div class="f-bars-block"><h3>${label}</h3><div class="f-bars">${values.map((v, i) => `<div class="f-bar" title="${v} · ${data.dias[i]}"><span class="f-bar-n">${v}</span><i style="height:${Math.max(4, Math.round((v / max) * 100))}%"></i><small>${dayLabel(data.dias[i])}</small></div>`).join('')}</div></div>`;
+        };
+        const maxCat = Math.max(1, ...data.categorias.map((c) => c.n));
+        body().innerHTML = `
+          <h2>Resumen de PRISM</h2>
+          <div class="f-health ${on === est.servicios.length ? 'is-ok' : ''}"><span class="f-dot ${on === est.servicios.length ? '' : 'is-off'}"></span><strong>${on} de ${est.servicios.length} servicios conectados</strong><button class="text-button" type="button" data-f="admin-tab" data-v="estado">Ver detalle</button></div>
+          <div class="f-kpis">${kpi.map(([label, value]) => `<div class="f-kpi"><b>${value}</b><span>${label}</span></div>`).join('')}</div>
+          <h3 style="margin-top:22px">Últimos 7 días</h3>
+          <div class="f-bars-grid">${series.map(bars).join('')}</div>
+          ${data.categorias.length ? `<h3 style="margin-top:22px">Actividades por categoría</h3><div class="f-cats">${data.categorias.map((c) => `<div class="f-cat"><span>${esc(c.nombre)}</span><div class="f-cat-track"><i style="width:${Math.round((c.n / maxCat) * 100)}%"></i></div><b>${c.n}</b></div>`).join('')}</div>` : ''}`;
+      } else if (f.adminTab === 'usuarios') {
+        const data = await request('/api/admin/usuarios');
+        if (!body()) return;
+        body().innerHTML = `
+          <h2>Usuarios registrados (${data.usuarios.length})</h2>
+          <div class="f-scroll"><table class="f-table"><thead><tr><th>Nombre</th><th>Correo</th><th>Carrera</th><th>Rol</th><th>Publ.</th><th>Activ.</th><th>Desde</th></tr></thead><tbody>
+          ${data.usuarios.map((u) => `<tr><td><strong>${esc(u.name)}</strong></td><td>${esc(u.email)}</td><td>${esc(u.career)}</td>
+            <td><span class="f-badge ${u.role === 'admin' ? 'is-green' : ''}">${esc(ROLE_LABEL[u.role] || u.role)}</span></td><td>${u.publicaciones}</td><td>${u.actividades}</td><td>${esc(timeAgo(u.createdAt))}</td></tr>`).join('')}</tbody></table></div>`;
+      } else if (f.adminTab === 'estado') {
         const data = await request('/api/admin/estado');
         if (!body()) return;
-        body().innerHTML = `<h2>Estado de los servicios</h2>${data.servicios.map((s) => `
+        const on = data.servicios.filter((s) => s.activo).length;
+        body().innerHTML = `<h2>Estado de los servicios</h2><p class="f-muted">${on} de ${data.servicios.length} conectados. Los que no están conectados siguen funcionando con una alternativa local.</p>${data.servicios.map((s) => `
           <div class="f-service"><span class="f-dot ${s.activo ? '' : 'is-off'}"></span>
             <div class="f-grow"><strong>${esc(s.nombre)}</strong><div class="f-muted">${esc(s.detalle)}</div></div>
             <span class="f-badge ${s.activo ? 'is-green' : 'is-gray'}">${s.activo ? 'Conectado' : 'Respaldo local'}</span></div>`).join('')}`;
@@ -710,7 +738,7 @@
         if (!body()) return;
         const r = data.resumen;
         const rows = (list, withActions) => `<div class="f-scroll"><table class="f-table"><thead><tr><th>Pregunta</th><th>Respuesta</th><th>De</th>${withActions ? '<th></th>' : ''}</tr></thead><tbody>
-          ${list.map((n) => `<tr><td>${esc(n.question)}</td><td>${esc(n.answer.slice(0, 240))}${n.answer.length > 240 ? '…' : ''}</td><td>${esc(n.author || '—')}<div class="f-muted">${esc(timeAgo(n.createdAt))}</div></td>
+          ${list.map((n) => `<tr><td>${esc(n.question)}</td><td>${esc(plain(n.answer).slice(0, 240))}${plain(n.answer).length > 240 ? '…' : ''}</td><td>${esc(n.author || '—')}<div class="f-muted">${esc(timeAgo(n.createdAt))}</div></td>
             ${withActions ? `<td class="f-actions"><button class="primary-button" type="button" data-f="learn" data-v="aprobar" data-id="${n.id}">Enseñar</button> <button class="text-button" type="button" data-f="learn" data-v="descartar" data-id="${n.id}">Descartar</button></td>` : ''}</tr>`).join('')}</tbody></table></div>`;
         body().innerHTML = `
           <h2>Aprendizaje del asistente</h2>
@@ -854,7 +882,9 @@
       } catch (error) { showToast(error.message, true); target.disabled = false; }
     } else if (action === 'admin-tab') {
       f.adminTab = target.dataset.v;
-      renderAdmin();
+      document.querySelectorAll('[data-f="admin-tab"].f-chip').forEach((chip) => chip.classList.toggle('is-active', chip.dataset.v === f.adminTab));
+      const box = document.getElementById('f-admin-body');
+      if (box) { box.innerHTML = '<span class="f-muted">Cargando…</span>'; loadAdminTab(); } else renderAdmin();
     } else if (action === 'upload-doc') {
       uploadDocument(target);
     } else if (action === 'sync-index') {
