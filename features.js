@@ -104,14 +104,132 @@
   }
 
   /* ----------------------------- Asistente ----------------------------- */
+  function renderMarkdown(raw) {
+    if (!raw) return '';
+    let text = esc(raw);
+
+    // Tablas Markdown
+    const tableRegex = /((?:^[ \t]*\|.+?\|[ \t]*(?:\r?\n|$))+)/gm;
+    text = text.replace(tableRegex, (match) => {
+      const rows = match.trim().split(/\r?\n/).map((r) => r.trim()).filter(Boolean);
+      if (rows.length < 2) return match;
+      let sepIndex = -1;
+      for (let i = 0; i < rows.length; i++) {
+        if (/^\|[ \t]*(?::?-+:?[ \t]*\|)+$/.test(rows[i])) {
+          sepIndex = i;
+          break;
+        }
+      }
+      if (sepIndex === -1 && rows.length >= 2 && /^\|[- :|]+\|$/.test(rows[1])) {
+        sepIndex = 1;
+      }
+      if (sepIndex === -1) return match;
+
+      const parseCells = (row) =>
+        row
+          .replace(/^\|/, '')
+          .replace(/\|$/, '')
+          .split('|')
+          .map((c) => c.trim());
+
+      const headerRows = rows.slice(0, sepIndex);
+      const bodyRows = rows.slice(sepIndex + 1);
+
+      let html = '<div class="f-table-wrap"><table class="f-chat-table">';
+      if (headerRows.length) {
+        html += '<thead>';
+        headerRows.forEach((hr) => {
+          const cells = parseCells(hr);
+          html += '<tr>' + cells.map((c) => `<th>${c}</th>`).join('') + '</tr>';
+        });
+        html += '</thead>';
+      }
+      if (bodyRows.length) {
+        html += '<tbody>';
+        bodyRows.forEach((br) => {
+          const cells = parseCells(br);
+          html += '<tr>' + cells.map((c) => `<td>${c}</td>`).join('') + '</tr>';
+        });
+        html += '</tbody>';
+      }
+      html += '</table></div>';
+      return html;
+    });
+
+    // Negrita
+    text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    text = text.replace(/__(.+?)__/g, '<strong>$1</strong>');
+
+    // Cursiva
+    text = text.replace(/(^|[^*])\*(?!\*)([^*]+?)\*(?!\*)/g, '$1<em>$2</em>');
+
+    // Código inline
+    text = text.replace(/`([^`]+)`/g, '<code class="f-inline-code">$1</code>');
+
+    // Listas desordenadas
+    text = text.replace(/((?:^[ \t]*[-*][ \t]+.+$(?:\r?\n)?)+)/gm, (match) => {
+      const items = match.trim().split(/\r?\n/).map((line) => {
+        return `<li>${line.replace(/^[ \t]*[-*][ \t]+/, '')}</li>`;
+      }).join('');
+      return `<ul class="f-chat-list">${items}</ul>`;
+    });
+
+    // Listas ordenadas
+    text = text.replace(/((?:^[ \t]*\d+\.[ \t]+.+$(?:\r?\n)?)+)/gm, (match) => {
+      const items = match.trim().split(/\r?\n/).map((line) => {
+        return `<li>${line.replace(/^[ \t]*\d+\.[ \t]+/, '')}</li>`;
+      }).join('');
+      return `<ol class="f-chat-list is-ordered">${items}</ol>`;
+    });
+
+    // Citas
+    text = text.replace(/^>[ \t]*(.+)$/gm, '<blockquote class="f-quote">$1</blockquote>');
+
+    // Enlaces
+    text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="f-chat-link">$1</a>');
+
+    // Párrafos limpios
+    const blocks = text.split(/(?:\r?\n){2,}/);
+    const formattedBlocks = blocks.map((block) => {
+      const b = block.trim();
+      if (!b) return '';
+      if (b.startsWith('<div class="f-table-wrap"') || b.startsWith('<ul') || b.startsWith('<ol') || b.startsWith('<blockquote')) {
+        return b;
+      }
+      return `<p class="f-paragraph">${b.replace(/\r?\n/g, '<br>')}</p>`;
+    });
+
+    return formattedBlocks.join('');
+  }
+
   function botExtras(message) {
     const parts = [];
     if (message.cards && message.cards.length) {
-      parts.push(`<div class="f-result-list">${message.cards.map((a) => `
-        <div class="f-result"><strong>${activityIcon(a.category)} ${esc(a.title)}</strong>
-          <small class="f-muted">${esc(a.category)} · ${esc(a.location)}${a.eventDate ? ` · ${esc(formatDate(a.eventDate))}` : ''} · ${a.remaining} cupo${a.remaining === 1 ? '' : 's'}</small>
-          ${a.remaining > 0 ? `<div><button class="outline-button" type="button" data-f="enroll" data-id="${a.id}">Unirme</button></div>` : ''}
-        </div>`).join('')}</div>`);
+      parts.push(`<div class="f-result-list">${message.cards.map((a) => {
+        const spotsClass = a.remaining > 5 ? 'is-green' : (a.remaining > 0 ? 'is-orange' : 'is-red');
+        const spotsText = a.remaining > 0 ? `${a.remaining} cupo${a.remaining === 1 ? '' : 's'} disponible${a.remaining === 1 ? '' : 's'}` : 'Sin cupos';
+        return `
+        <div class="f-result f-activity-card">
+          <div class="f-card-top">
+            <span class="f-badge ${spotsClass}">${activityIcon(a.category)} ${esc(a.category)}</span>
+            <span class="f-badge ${spotsClass} f-spots-badge">🎟️ ${spotsText}</span>
+          </div>
+          <h4 class="f-card-title">${esc(a.title)}</h4>
+          <div class="f-card-meta">
+            <span class="f-meta-item">📍 ${esc(a.location)}</span>
+            ${a.eventDate ? `<span class="f-meta-item">📅 ${esc(formatDate(a.eventDate))}</span>` : ''}
+          </div>
+          ${a.remaining > 0 ? `
+            <div class="f-card-action">
+              <button class="primary-button f-enroll-btn" type="button" data-f="enroll" data-id="${a.id}">
+                <span>⚡ Unirme a esta actividad</span>
+              </button>
+            </div>` : `
+            <div class="f-card-action">
+              <span class="f-muted" style="font-size:0.85rem;">🚫 Cupos agotados</span>
+            </div>`}
+        </div>`;
+      }).join('')}</div>`);
     }
     if (message.sources && message.sources.length) {
       parts.push(`<div class="f-msg-meta">${message.sources.map((s) => `<span class="f-badge">📄 ${esc(s.title)}</span>`).join('')}</div>`);
@@ -146,7 +264,17 @@
     if (message.role === 'user') return `<div class="f-msg is-user">${esc(message.content)}</div>`;
     const typing = f.streaming && index === f.chat.length - 1 ? ' f-typing' : '';
     const streamingNow = f.streaming && index === f.chat.length - 1;
-    return `<div class="f-msg is-bot"><span class="f-text${typing}" data-i="${index}">${esc(message.content)}</span><div class="f-extras">${botExtras(message)}</div>${streamingNow ? '' : rateHtml(message, index)}</div>`;
+    return `
+      <div class="f-msg is-bot">
+        <div class="f-bot-tag">
+          <span class="f-bot-icon">🤖</span>
+          <span class="f-bot-title">PRISM Bot</span>
+          <span class="f-bot-pill">IA Campus</span>
+        </div>
+        <div class="f-text${typing}" data-i="${index}">${renderMarkdown(message.content)}</div>
+        <div class="f-extras">${botExtras(message)}</div>
+        ${streamingNow ? '' : rateHtml(message, index)}
+      </div>`;
   }
 
   function renderAssistant() {
@@ -196,7 +324,7 @@
     const text = stream && stream.querySelector(`.f-text[data-i="${index}"]`);
     if (!text) return;
     const message = f.chat[index];
-    text.textContent = message.content;
+    text.innerHTML = renderMarkdown(message.content);
     text.classList.toggle('f-typing', f.streaming && index === f.chat.length - 1);
     text.parentElement.querySelector('.f-extras').innerHTML = botExtras(message);
     scrollChat();
