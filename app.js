@@ -28,6 +28,8 @@ const state = {
   pendingActions: new Set(),
   lastFocusedElement: null,
   toastTimer: null,
+  draftChatInput: '',
+  draftPostBody: '',
 };
 
 const POST_CATEGORIES = ['Todos', 'General', 'Académico', 'Comunidad'];
@@ -206,7 +208,8 @@ function initWebSocket() {
     if (state.user && state.user.name !== author) {
       showToast(`📢 [En vivo] ${author} publicó en el campus`);
       refreshFeed();
-      if (currentRoute() === 'inicio') renderPage();
+      // No re-renderizar si el estudiante está escribiendo o interactuando
+      if (currentRoute() === 'inicio' && !isUserTyping()) renderPage();
     }
   });
 
@@ -215,16 +218,61 @@ function initWebSocket() {
     const p = state.feed.posts.find((item) => String(item.id) === String(data.postId));
     if (p) {
       p.likes = data.likes;
-      if (currentRoute() === 'inicio') renderPage();
+      // Actualización directa del botón en el DOM para evitar destruir campos o perder foco
+      const likeBtn = document.querySelector(`button[data-action="like-post"][data-id="${data.postId}"]`);
+      if (likeBtn) {
+        const isLiked = likeBtn.classList.contains('is-liked') || Boolean(p.liked);
+        likeBtn.innerHTML = `${isLiked ? '♥ Te gusta' : '♡ Me gusta'} · ${data.likes}`;
+      } else if (currentRoute() === 'inicio' && !isUserTyping()) {
+        renderPage();
+      }
     }
   });
 
   socket.on('feed:post_deleted', (data) => {
     if (!data) return;
     state.feed.posts = state.feed.posts.filter((item) => String(item.id) !== String(data.postId));
-    if (currentRoute() === 'inicio') renderPage();
+    const card = document.querySelector(`article[data-post-id="${data.postId}"]`);
+    if (card) {
+      card.remove();
+    } else if (currentRoute() === 'inicio' && !isUserTyping()) {
+      renderPage();
+    }
   });
 }
+
+function isUserTyping() {
+  const active = document.activeElement;
+  if (active && (
+    active.tagName === 'INPUT' ||
+    active.tagName === 'TEXTAREA' ||
+    active.tagName === 'SELECT' ||
+    active.isContentEditable ||
+    active.getAttribute?.('role') === 'textbox' ||
+    active.getAttribute?.('contenteditable') === 'true'
+  )) {
+    return true;
+  }
+
+  if (document.querySelector('input:focus, textarea:focus, select:focus, [contenteditable="true"]:focus')) {
+    return true;
+  }
+
+  const modalRoot = document.getElementById('modal-root');
+  if (modalRoot && modalRoot.children.length > 0 && modalRoot.innerHTML.trim() !== '') {
+    return true;
+  }
+
+  const inputs = document.querySelectorAll('input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]), textarea');
+  for (const el of inputs) {
+    if (el.value && el.value.trim().length > 0 && el.id !== 'auth-email' && el.id !== 'auth-password') {
+      return true;
+    }
+  }
+
+  return false;
+}
+window.isUserTyping = isUserTyping;
 
 function setFormBusy(form, busy) {
   const button = form.querySelector('button[type="submit"]');
@@ -480,11 +528,20 @@ async function enterApp(user) {
 
 async function refreshInBackground() {
   if (!state.user || document.hidden || state.backgroundRefreshing || state.pendingActions.size) return;
+  // Nunca interrumpir si el usuario está escribiendo o interactuando en cualquier pantalla
+  if (isUserTyping()) return;
+
+  const route = currentRoute();
+  // Las secciones interactivas (asistente, buscar, contacto, admin y chat) no se destruyen en segundo plano
+  if (isFeatureRoute(route) || route === 'chat') return;
+
   state.backgroundRefreshing = true;
   const sessionVersion = state.sessionVersion;
   try {
     await refreshCurrentRoute();
-    if (sessionVersion === state.sessionVersion && state.user) await renderPage();
+    if (sessionVersion === state.sessionVersion && state.user && !isUserTyping()) {
+      await renderPage();
+    }
   } catch (error) {
     if (state.user) showToast(error.message, true);
   } finally {
@@ -579,7 +636,7 @@ function layoutChat() {
       </div>
 
       <form id="chat-form" style="padding:14px 18px; border-top:1px solid #eadfe3; display:flex; gap:10px; background:#ffffff;">
-        <input id="chat-input" type="text" placeholder="Escribe un mensaje al campus..." style="flex:1; border:1px solid #eadfe3; border-radius:12px; padding:10px 14px; font-size:0.92rem; outline:none;" autocomplete="off" required />
+        <input id="chat-input" type="text" placeholder="Escribe un mensaje al campus..." value="${escapeHtml(state.draftChatInput || '')}" style="flex:1; border:1px solid #eadfe3; border-radius:12px; padding:10px 14px; font-size:0.92rem; outline:none;" autocomplete="off" required />
         <button type="submit" class="primary-button" style="padding:10px 22px;">Enviar</button>
       </form>
     </section>
@@ -808,7 +865,7 @@ function openPostModal(openCamera = false) {
     ${modalHead('Compartir', 'Nueva publicación', 'Tu publicación aparecerá en el inicio de la comunidad.')}
     <form id="post-form" class="modal-form">
       <label for="post-body">¿Qué quieres compartir?</label>
-      <textarea id="post-body" name="body" maxlength="1200" placeholder="Escribe aquí… (el modelo ML analizará el tema y tono en vivo)"></textarea>
+      <textarea id="post-body" name="body" maxlength="1200" placeholder="Escribe aquí… (el modelo ML analizará el tema y tono en vivo)">${escapeHtml(state.draftPostBody || '')}</textarea>
 
       <!-- Asistente de Machine Learning en vivo -->
       <div id="ml-post-panel" class="ml-post-panel" hidden>
@@ -1146,6 +1203,7 @@ async function handlePostSubmit(form) {
   try {
     await request('/api/posts', { method: 'POST', body: { body, category, image: state.pendingPostImage } });
     if (!isCurrentSession(sessionVersion)) return;
+    state.draftPostBody = '';
     closeModal();
     await refreshFeed(sessionVersion);
     if (!isCurrentSession(sessionVersion)) return;
@@ -1169,6 +1227,7 @@ async function handleActivitySubmit(form) {
   try {
     await request('/api/activities', { method: 'POST', body: values });
     if (!isCurrentSession(sessionVersion)) return;
+    state.draftPostBody = '';
     closeModal();
     await refreshFeed(sessionVersion);
     if (!isCurrentSession(sessionVersion)) return;
@@ -1222,6 +1281,7 @@ async function handleProfileSubmit(form) {
     if (!isCurrentSession(sessionVersion)) return;
     state.user = data.user;
     state.profile = null;
+    state.draftPostBody = '';
     closeModal();
     await Promise.all([refreshProfile(sessionVersion), refreshProfilePosts(sessionVersion), refreshFeed(sessionVersion)]);
     if (!isCurrentSession(sessionVersion)) return;
@@ -1242,6 +1302,7 @@ async function handleDeleteStory(id) {
   try {
     await request(`/api/stories/${id}`, { method: 'DELETE' });
     if (!isCurrentSession(sessionVersion)) return;
+    state.draftPostBody = '';
     closeModal();
     await refreshFeed(sessionVersion);
     if (!isCurrentSession(sessionVersion)) return;
@@ -1347,6 +1408,7 @@ async function handleClick(event) {
 
   if (action === 'close-modal') {
     if (target.classList.contains('modal-backdrop') && event.target !== target) return;
+    state.draftPostBody = '';
     closeModal();
   } else if (action === 'create-post') {
     openPostModal();
@@ -1437,6 +1499,7 @@ function handleSubmit(event) {
     if (!input || !input.value.trim()) return;
     const text = input.value.trim();
     input.value = '';
+    state.draftChatInput = '';
     if (socket && socket.connected) {
       socket.emit('chat:send', { text, user: state.user });
     } else {
@@ -1492,6 +1555,13 @@ function handleFileInput(event) {
 document.addEventListener('click', handleClick);
 document.addEventListener('change', handleChange);
 document.addEventListener('submit', handleSubmit);
+document.addEventListener('input', (event) => {
+  if (event.target.id === 'chat-input') {
+    state.draftChatInput = event.target.value;
+  } else if (event.target.id === 'post-body') {
+    state.draftPostBody = event.target.value;
+  }
+});
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
   if (modalRoot.innerHTML) closeModal();
@@ -1501,9 +1571,11 @@ storyCamera.addEventListener('change', handleFileInput);
 profileCamera.addEventListener('change', handleFileInput);
 window.addEventListener('hashchange', handleRouteChange);
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) refreshInBackground();
+  if (!document.hidden && !isUserTyping()) refreshInBackground();
 });
-window.setInterval(() => refreshInBackground(), 30000);
+window.setInterval(() => {
+  if (!isUserTyping()) refreshInBackground();
+}, 30000);
 
 setAuthMode('login');
 

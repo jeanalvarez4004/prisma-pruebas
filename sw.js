@@ -1,4 +1,4 @@
-const CACHE = 'prism-v39-assistant-live-weather';
+const CACHE = 'prism-v40-keep-user-typing-preserve-input';
 const ASSETS = [
   './',
   './index.html',
