@@ -2459,6 +2459,50 @@ h1, h2, .auth-card h2 { font-family: var(--serif); letter-spacing: -.01em; }
 .auth-intro .brand-mark span { color: #fff; }
 .auth-intro .brand-mark img { background: #fff; border-radius: 14px; padding: 5px; }
 .auth-kicker { margin: 28px 0 10px; font-size: 15px; font-weight: 600; color: rgba(255, 255, 255, .82); }
+.auth-weather-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 auto 16px;
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  transition: all 0.25s ease;
+}
+.auth-weather-badge:hover {
+  background: rgba(255, 255, 255, 0.24);
+  transform: translateY(-1px);
+}
+.auth-w-dot {
+  color: #3aff9e;
+  font-size: 0.7rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+}
+.auth-w-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+.auth-w-temp {
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: #ffffff;
+}
+.auth-w-city {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.78rem;
+  border-left: 1px solid rgba(255, 255, 255, 0.3);
+  padding-left: 8px;
+}
 .auth-intro h1 { margin: 0 0 16px; color: #fff; font-size: clamp(38px, 4.6vw, 60px); line-height: 1.04; font-weight: 700; }
 .auth-intro h1 em { color: #fff; font-style: italic; font-weight: 600; background: none; -webkit-text-fill-color: #fff; }
 .auth-intro-copy { max-width: 40ch; margin: 0 auto; color: rgba(255, 255, 255, .88); font-size: 17px; line-height: 1.55; }
