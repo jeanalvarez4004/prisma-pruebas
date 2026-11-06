@@ -539,7 +539,7 @@
 
   async function fetchCampusWeather() {
     const now = Date.now();
-    if (weatherData && now - weatherFetched < 5 * 60 * 1000) {
+    if (weatherData && !weatherData.fallback && now - weatherFetched < 5 * 60 * 1000) {
       updateWeatherUI(weatherData);
       return weatherData;
     }

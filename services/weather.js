@@ -1,5 +1,10 @@
 'use strict';
 
+const dns = require('node:dns');
+if (dns.setDefaultResultOrder) {
+  try { dns.setDefaultResultOrder('ipv4first'); } catch {}
+}
+
 /**
  * Clima del Campus Arequipa (Open-Meteo, sin API key) con caché de 10 minutos.
  * Lo usan la ruta /api/weather (widget) y el asistente (herramienta clima_actual).
@@ -145,9 +150,12 @@ async function getWeather() {
     lastOk = true;
     return { data: cached, cache: 'MISS' };
   } catch (error) {
+    console.error('[Weather] Falló fetch Open-Meteo:', error && (error.stack || error.message));
     lastOk = false;
     if (cached) return { data: cached, cache: 'STALE' };
-    return { data: fallback(), cache: 'FALLBACK' };
+    const fb = fallback();
+    fb.serverError = error ? (error.message || String(error)) : 'unknown';
+    return { data: fb, cache: 'FALLBACK' };
   }
 }
 
