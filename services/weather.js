@@ -115,6 +115,53 @@ function nextHours(hourly, currentTime, count = 6) {
   };
 }
 
+async function fetchWttrFallback() {
+  const res = await fetch('https://wttr.in/Arequipa?format=j1', {
+    signal: AbortSignal.timeout(6000),
+    headers: { 'User-Agent': 'curl/8.0' },
+  });
+  if (!res.ok) throw new Error(`wttr.in respondió ${res.status}`);
+  const d = await res.json();
+  const c = d.current_condition?.[0] || {};
+  const w = d.weather?.[0] || {};
+  const hours = new Date().getHours();
+  const isNight = hours >= 18 || hours < 6;
+  const temp = Number(c.temp_C) || 17.6;
+  const apparent = Number(c.FeelsLikeC) || temp;
+  const humidity = Number(c.humidity) || 54;
+  const wind = Number(c.windspeedKmph) || 10;
+  const cond = getWeatherCondition(3, isNight);
+
+  return {
+    location: 'Arequipa, Perú (Campus USMP)',
+    elevation: 2342,
+    provider: 'wttr.in (Respaldo en vivo)',
+    current: {
+      time: new Date().toISOString(),
+      temp,
+      apparentTemp: apparent,
+      humidity,
+      unit: '°C',
+      weatherCode: 3,
+      condition: cond.condition,
+      icon: cond.icon,
+      pressure: Number(c.pressure) || 1015.6,
+      windSpeed: wind,
+      windUnit: 'km/h',
+      windDirection: Number(c.winddirDegree) || 295,
+      windGusts: null,
+    },
+    daily: {
+      minTemp: Number(w.mintempC) || 12.4,
+      maxTemp: Number(w.maxtempC) || 22.3,
+      uvIndex: Number(w.uvIndex) || 10.75,
+      moonPhase: 0.91,
+    },
+    rain: { probabilityNext6h: 25, mmNext6h: Number(c.precipMM) || 0 },
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 /** Devuelve { data, cache: 'HIT' | 'MISS' | 'STALE' | 'FALLBACK' }. Si forceFresh = true, omite la caché. */
 async function getWeather({ forceFresh = false } = {}) {
   const nowMs = Date.now();
@@ -137,6 +184,7 @@ async function getWeather({ forceFresh = false } = {}) {
     cached = {
       location: 'Arequipa, Perú (Campus USMP)',
       elevation: d.elevation || 2342,
+      provider: 'Open-Meteo',
       current: {
         time: d.current ? d.current.time : new Date().toISOString(),
         temp: d.current ? Math.round(d.current.temperature_2m * 10) / 10 : 19.4,
@@ -165,12 +213,21 @@ async function getWeather({ forceFresh = false } = {}) {
     lastOk = true;
     return { data: cached, cache: 'MISS' };
   } catch (error) {
-    console.error('[Weather] Falló fetch Open-Meteo:', error && (error.stack || error.message));
-    lastOk = false;
-    if (cached) return { data: cached, cache: 'STALE' };
-    const fb = fallback();
-    fb.serverError = error ? (error.message || String(error)) : 'unknown';
-    return { data: fb, cache: 'FALLBACK' };
+    console.warn('[Weather] Open-Meteo falló, intentando wttr.in de respaldo:', error.message);
+    try {
+      const wttrData = await fetchWttrFallback();
+      cached = wttrData;
+      cachedAt = nowMs;
+      lastOk = true;
+      return { data: cached, cache: 'MISS' };
+    } catch (wttrError) {
+      console.error('[Weather] Fallaron ambos proveedores meteorológicos:', wttrError.message);
+      lastOk = false;
+      if (cached) return { data: cached, cache: 'STALE' };
+      const fb = fallback();
+      fb.serverError = `${error.message} | ${wttrError.message}`;
+      return { data: fb, cache: 'FALLBACK' };
+    }
   }
 }
 
@@ -207,7 +264,11 @@ function advise(weather) {
 }
 
 function status() {
-  return { ok: lastOk, cachedAt: cachedAt || null };
+  return {
+    ok: lastOk,
+    cachedAt: cachedAt || null,
+    provider: cached?.provider || (lastOk ? 'Open-Meteo' : null),
+  };
 }
 
 module.exports = { getWeather, advise, status, getWeatherCondition };
