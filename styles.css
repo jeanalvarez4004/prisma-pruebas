@@ -2551,3 +2551,195 @@ h1, h2, .auth-card h2 { font-family: var(--serif); letter-spacing: -.01em; }
 }
 .profile-cover { background: linear-gradient(150deg, #c4172f 0%, #8f0f22 100%); }
 .profile-name, .profile-intro h1, .profile-intro h2 { font-family: var(--serif); }
+
+/* --- Widget del Clima Campus Arequipa (Open-Meteo) --- */
+.topbar-weather {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #ffffff;
+  border: 1px solid #eadfe3;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #302329;
+  box-shadow: 0 2px 8px rgba(74, 45, 57, 0.04);
+  transition: all 0.2s ease;
+  user-select: none;
+}
+.topbar-weather:hover {
+  background: #fff0f4;
+  border-color: #dccbd2;
+}
+.topbar-weather-temp {
+  color: var(--accent-dark);
+}
+.topbar-weather-city {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.76rem;
+  border-left: 1px solid #eadfe3;
+  padding-left: 6px;
+}
+@media (max-width: 768px) {
+  .topbar-weather-city { display: none; }
+}
+
+.home-welcome-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  width: 100%;
+}
+.home-welcome-content {
+  flex: 1 1 320px;
+}
+.home-weather-slot {
+  flex: 0 0 290px;
+  min-width: 270px;
+}
+@media (max-width: 820px) {
+  .home-welcome-inner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .home-weather-slot {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+.weather-card {
+  background: linear-gradient(145deg, #ffffff 0%, #fff7f9 100%);
+  border: 1px solid rgba(179, 19, 43, 0.15);
+  border-radius: 18px;
+  padding: 16px 18px;
+  box-shadow: 0 8px 24px rgba(74, 45, 57, 0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease;
+}
+.weather-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(179, 19, 43, 0.12);
+}
+.weather-card::before {
+  content: '';
+  position: absolute;
+  top: -30px;
+  right: -30px;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 184, 0, 0.18) 0%, transparent 70%);
+  pointer-events: none;
+}
+.weather-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+.weather-tag {
+  color: var(--ink-soft);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.weather-live-dot {
+  color: #228b62;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #eaf8f1;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+}
+.weather-card-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.weather-icon-temp {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.weather-big-icon {
+  font-size: 2.2rem;
+  line-height: 1;
+}
+.weather-temp-group {
+  display: flex;
+  align-items: flex-start;
+}
+.weather-temp-number {
+  font-size: 2.1rem;
+  font-weight: 900;
+  color: #302329;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+.weather-temp-unit {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin-top: 2px;
+}
+.weather-status-text {
+  text-align: right;
+}
+.weather-status-text strong {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--accent-dark);
+}
+.weather-status-text small {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.weather-card-footer {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(234, 223, 227, 0.7);
+}
+.weather-stat-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #ffffff;
+  padding: 6px 4px;
+  border-radius: 10px;
+  border: 1px solid #f0e6ea;
+  text-align: center;
+}
+.weather-stat-pill .w-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--muted);
+  letter-spacing: 0.03em;
+}
+.weather-stat-pill .w-val {
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: #302329;
+  margin-top: 2px;
+}
+.weather-stat-pill.is-uv-warning {
+  background: #fff4e8;
+  border-color: rgba(201, 121, 37, 0.25);
+}
+.weather-stat-pill.is-uv-warning .w-val {
+  color: #c97925;
+}

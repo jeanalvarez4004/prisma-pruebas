@@ -594,13 +594,18 @@ function layoutHome() {
 
   return `
     <section class="home-welcome">
-      <p class="eyebrow">USMP Filial Sur · Arequipa</p>
-      <h1>Hola, ${userName} <span aria-hidden="true">👋</span></h1>
-      <p>Comparte lo que estás haciendo o encuentra gente para lo que tienes en mente.</p>
-      <div class="home-actions">
-        <button class="primary-button" type="button" data-action="create-post">＋ Publicar</button>
-        <button class="secondary-button" type="button" data-action="create-activity">Crear actividad</button>
-        <button class="outline-button" type="button" data-action="story-camera">Subir historia</button>
+      <div class="home-welcome-inner">
+        <div class="home-welcome-content">
+          <p class="eyebrow">USMP Filial Sur · Arequipa</p>
+          <h1>Hola, ${userName} <span aria-hidden="true">👋</span></h1>
+          <p>Comparte lo que estás haciendo o encuentra gente para lo que tienes en mente.</p>
+          <div class="home-actions">
+            <button class="primary-button" type="button" data-action="create-post">＋ Publicar</button>
+            <button class="secondary-button" type="button" data-action="create-activity">Crear actividad</button>
+            <button class="outline-button" type="button" data-action="story-camera">Subir historia</button>
+          </div>
+        </div>
+        <div id="home-weather-widget" class="home-weather-slot"></div>
       </div>
     </section>
 
