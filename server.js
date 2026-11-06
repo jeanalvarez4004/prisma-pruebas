@@ -713,6 +713,64 @@ app.get('/api/view-data', (req, res) => {
   });
 });
 
+// Clima en vivo del Campus Arequipa (Open-Meteo API) con caché en memoria / HTTP headers
+let cachedWeather = null;
+let cachedWeatherTime = 0;
+
+app.get('/api/weather', asyncRoute(async (req, res) => {
+  const nowMs = Date.now();
+  // Caché de 10 minutos
+  if (cachedWeather && (nowMs - cachedWeatherTime < 10 * 60 * 1000)) {
+    res.setHeader('X-Cache', 'HIT');
+    return res.json(cachedWeather);
+  }
+
+  const url = 'https://api.open-meteo.com/v1/forecast?latitude=-16.399&longitude=-71.5375&daily=temperature_2m_max,temperature_2m_min,uv_index_clear_sky_max,moonrise,moonset,moon_phase&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,rain,snowfall&current=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m&timezone=auto';
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Open-Meteo responded with ${response.status}`);
+    const data = await response.json();
+
+    cachedWeather = {
+      location: 'Arequipa, Perú (Campus USMP)',
+      elevation: data.elevation || 2342,
+      current: {
+        time: data.current ? data.current.time : new Date().toISOString(),
+        temp: data.current ? Math.round(data.current.temperature_2m * 10) / 10 : 15,
+        unit: data.current_units ? data.current_units.temperature_2m : '°C',
+        pressure: data.current ? data.current.pressure_msl : 1016,
+        windSpeed: data.current ? data.current.wind_speed_10m : 3,
+        windUnit: data.current_units ? data.current_units.wind_speed_10m : 'km/h',
+        windDirection: data.current ? data.current.wind_direction_10m : 100,
+      },
+      daily: {
+        minTemp: data.daily ? data.daily.temperature_2m_min[0] : 14,
+        maxTemp: data.daily ? data.daily.temperature_2m_max[0] : 24,
+        uvIndex: data.daily ? data.daily.uv_index_clear_sky_max[0] : 10.8,
+        moonPhase: data.daily ? data.daily.moon_phase[0] : 0.88,
+      },
+      updatedAt: new Date().toISOString(),
+    };
+    cachedWeatherTime = nowMs;
+    res.setHeader('X-Cache', 'MISS');
+    res.json(cachedWeather);
+  } catch (err) {
+    if (cachedWeather) {
+      res.setHeader('X-Cache', 'STALE');
+      return res.json(cachedWeather);
+    }
+    res.json({
+      location: 'Arequipa, Perú (Campus USMP)',
+      elevation: 2342,
+      current: { temp: 15.0, unit: '°C', pressure: 1016.1, windSpeed: 2.8, windUnit: 'km/h', windDirection: 105 },
+      daily: { minTemp: 14.3, maxTemp: 24.5, uvIndex: 10.8, moonPhase: 0.88 },
+      updatedAt: new Date().toISOString(),
+      fallback: true,
+    });
+  }
+}));
+
 // Tópico Temp Data / Flash Messages (Mensajes temporales de consumo único almacenados en Redis)
 app.post('/api/temp-data', requireAuth, asyncRoute(async (req, res) => {
   const message = cleanText(req.body && req.body.message, 250);
