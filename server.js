@@ -1259,6 +1259,11 @@ if (searchService.isConfigured && searchService.isConfigured()) {
     .catch((error) => console.warn('[Búsqueda] No se pudo sincronizar Algolia:', error.message));
 }
 
+// Pre-calentar el clima al arrancar el servidor (Open-Meteo con failover a wttr.in)
+weatherService.getWeather().then((r) => {
+  console.log(`[Clima] Inicializado (${r.data?.provider || 'Open-Meteo'}) a ${r.data?.current?.temp}°C`);
+}).catch((err) => console.warn('[Clima Warmup]', err.message));
+
 // --- Asistente con respuesta progresiva (SSE) ------------------------------------
 app.post('/api/asistente', requireAuth, assistantRateLimit, asyncRoute(async (req, res) => {
   res.status(200).set({
@@ -1459,7 +1464,11 @@ app.post('/api/contacto', requireAuth, contactRateLimit, (req, res) => {
 // --- Administración ---------------------------------------------------------------
 app.get('/api/admin/estado', requireAdmin, asyncRoute(async (req, res) => {
   const ping = await redis.ping();
-  const clima = weatherService.status();
+  let clima = weatherService.status();
+  if (clima.ok === null) {
+    await weatherService.getWeather().catch(() => {});
+    clima = weatherService.status();
+  }
   const documents = knowledgeService.listDocuments(db).length;
   const servicios = [
     { nombre: databaseMode === 'turso' ? 'Base de datos (Turso)' : 'Base de datos (SQLite local)', activo: databaseMode === 'turso', detalle: databaseMode === 'turso' ? 'Datos persistentes en Turso' : 'Archivo local: se borra en cada reinicio de Render' },
@@ -1467,7 +1476,7 @@ app.get('/api/admin/estado', requireAdmin, asyncRoute(async (req, res) => {
     { nombre: 'Búsqueda (Algolia)', activo: searchService.isConfigured(), detalle: searchService.isConfigured() ? 'Índice de publicaciones y actividades' : 'Sin configurar: se busca directamente en SQLite' },
     { nombre: 'Asistente (Groq)', activo: assistantService.isConfigured(), detalle: assistantService.isConfigured() ? 'Respuestas redactadas por IA con herramientas' : 'Sin GROQ_API_KEY: modo básico de recuperación' },
     { nombre: 'Conocimiento (Qdrant)', activo: knowledgeService.isQdrantConfigured(), detalle: `${documents} documento(s) · embeddings: ${knowledgeService.embeddingsMode()}` },
-    { nombre: 'Clima (Open-Meteo)', activo: clima.ok !== false, detalle: clima.cachedAt ? `Actualizado ${new Date(clima.cachedAt).toLocaleTimeString('es-PE')}` : 'Sin consultas todavía' },
+    { nombre: 'Clima (Open-Meteo)', activo: clima.ok !== false, detalle: clima.cachedAt ? `Actualizado ${new Date(clima.cachedAt).toLocaleTimeString('es-PE')} · ${clima.provider || 'En vivo'}` : (clima.ok === false ? 'Respaldo local activo' : 'Conectando con Open-Meteo...') },
     { nombre: 'Notificaciones en vivo (Socket.IO)', activo: true, detalle: `${io.engine.clientsCount} cliente(s) conectado(s)` },
     { nombre: 'Machine Learning', activo: true, detalle: 'Sentimiento (Naive Bayes) y recomendaciones (factorización de matrices)' },
   ];
