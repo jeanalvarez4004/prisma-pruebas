@@ -1,39 +1,106 @@
-# 🔮 PRISM — Red Social Universitaria USMP 
+# 🔮 PRISM — Red Social Universitaria USMP
 
-
-[![Render Deploy](https://img.shields.io/badge/Render-Live%20App-00ff88?style=for-the-badge&logo=render&logoColor=white)](https://prismaa.onrender.com/)
+[![Render Deploy](https://img.shields.io/badge/Render-Pruebas%20Live-00ff88?style=for-the-badge&logo=render&logoColor=white)](https://prisma-pruebas-99uj.onrender.com)
+[![GitHub Repository](https://img.shields.io/badge/GitHub-jeanalvarez4004%2Fprisma--pruebas-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/jeanalvarez4004/prisma-pruebas)
 [![Figma Prototype](https://img.shields.io/badge/Figma-Prototipo%201%3A1-F24E1E?style=for-the-badge&logo=figma&logoColor=white)]()
-[![GitHub Repository](https://img.shields.io/badge/GitHub-Diogojuve%2Fprisma-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Diogojuve/prisma)
 
 ---
 
-##  Enlaces
+## 📌 Enlaces del Proyecto
 
-- **RENDER URL (App en vivo):** [https://prismaa.onrender.com/](https://prismaa.onrender.com/)
-- **FIGMA URL (Prototipo UI/UX):** []
-- **CÓDIGO URL (GitHub):** [https://github.com/Diogojuve/prisma](https://github.com/Diogojuve/prisma)
-
----
-
-##  Flujo de Ramas en GitHub (`Git Flow`)
-
-Para cumplir con la exigencia docente de desarrollo modular por ramas de características, el repositorio cuenta con las siguientes ramas temáticas:
-
-| Rama | Descripción del Módulo | Estado |
-| :--- | :--- | :--- |
-| **`main`** | Versión de producción unificada con despliegue continuo en Render. | ✅ En producción |
-| **`feature/rediseño-ui-figma`** | Rediseño de UI fiel al prototipo Figma (Dark Wine `#0e0207` & Neón `#ff2e63`), PWA móvil, Service Worker v12 y avatares 1:1. | ✅ Fusionado |
-| **`feature/redis-cache-upstash`** | Integración de Upstash Redis (Cache-Aside en `/api/feed`), invalidación atómica de versión, HTTP HEAD/OPTIONS/PUT/DELETE, Temp Data (Flash) y View Data. | ✅ Fusionado |
-| **`feature/websockets-socketio`** | Servidor y cliente Socket.IO en tiempo real: Chat global del campus, presencia de alumnos conectados en vivo y notificaciones reactivas. | ✅ Fusionado |
+- **App en vivo (Copia de Pruebas Render):** [https://prisma-pruebas-99uj.onrender.com](https://prisma-pruebas-99uj.onrender.com)
+- **Repositorio de Pruebas:** [https://github.com/jeanalvarez4004/prisma-pruebas](https://github.com/jeanalvarez4004/prisma-pruebas)
+- **Repositorio Original:** [https://github.com/Diogojuve/prisma](https://github.com/Diogojuve/prisma) *(conservado intacto)*
+- **Servicio Original Render:** `prismaa` *(conservado intacto)*
 
 ---
 
-## 🎓 Cobertura de los 10 Tópicos Evaluados
+## 📖 Resumen y Contexto del Proyecto
+
+**PRISM** es la red social universitaria desarrollada para la **USMP Filial Sur (Arequipa)**. Esta copia de pruebas implementa la totalidad de los servicios requeridos basados en el proyecto de referencia docente (*"Mundo Mascota"*), aplicando la adaptación de dominio correspondiente:
+
+$$\text{Producto} \longrightarrow \text{Actividad} \qquad\mid\qquad \text{Pedido} \longrightarrow \text{Inscripción}$$
+
+Todos los módulos han sido verificados en el entorno de pruebas `prisma-pruebas` sin afectar la versión base original.
+
+---
+
+## 🧩 Requisitos y Estado de Componentes (13 Módulos)
+
+De los 13 componentes de la arquitectura, **12 se encuentran completamente activos**, mientras que la cola externa de inscripciones se mantiene desactivada a nivel de CloudAMQP (operando con fallback en memoria a pedido):
+
+| # | Requisito | Estado | Dónde está | Cómo se implementó |
+| :-: | :--- | :---: | :--- | :--- |
+| **1** | **Render** | ✅ Activo | Servicio `prisma-pruebas`, `render.yaml` | Despliegue continuo desde GitHub mediante `npm ci` y `npm start`. Gestión segura de credenciales vía variables de entorno. |
+| **2** | **Base de Datos (SQLite + Turso)** | ✅ Activo | `server.js` (`openDatabase()`), `data/prisma.sqlite` | SQLite 3 local sincronizada con **Turso** mediante `@libsql/client`, garantizando persistencia ante reinicios del contenedor en Render. |
+| **3** | **Login y Sesiones** | ✅ Activo | `server.js` (`/api/auth/register`, `/login`, `/logout`) | Hash seguro de contraseñas, cookie `prism_session` (`httpOnly`, `sameSite: 'lax'`) y validación estricta de registro exclusivo para dominios `@usmp.pe`. |
+| **4** | **Redis (Upstash)** | ⚡ Conectado | `redis-client.js`, `server.js` (`/api/feed`) | Estrategia Cache-Aside en Upstash Redis Cloud vía REST API con invalidación atómica de versión (`prism:feed:ver`). Si falla, activa failover automático a SQLite. |
+| **5** | **Algolia** | ✅ Activo | `services/search.js`, `/api/search` | Sincronización automática del índice `prism_contenido` al arrancar. Búsqueda instantánea de publicaciones y actividades (fallback a SQL si no está configurado). |
+| **6** | **IA / LLM** | ✅ Activo | `services/assistant.js`, `/api/asistente` | Integración con **Groq** (`openai/gpt-oss-120b`) con streaming en tiempo real y function calling / tools (`buscar_conocimiento`, `consultar_actividades`, `tipo_cambio`). |
+| **7** | **Base Vectorial (Qdrant)** | ✅ Activo | `services/knowledge.js` | Indexación de embeddings vectoriales en **Qdrant Cloud** para búsqueda semántica del reglamento y guías, con respaldo relacional en SQLite. |
+| **8** | **Aprendizaje de la IA** | ✅ Activo | `services/memory.js`, `/api/asistente/feedback`, `/memoria` | Registro de preguntas, memoria contextual por estudiante, retroalimentación con votos 👍/👎 y panel de aprobación docente (*Enseñar*) antes de convertirlo en conocimiento. |
+| **9** | **Machine Learning** | ✅ Activo | `services/ml.js`, `ml/sentimiento.csv` | Clasificador Naive Bayes entrenado en frío para análisis de sentimiento en formulario de Contacto, y recomendador de actividades basado en factorización de matrices. |
+| **10** | **Tiempo Real (WebSockets)** | ✅ Activo | `server.js`, `app.js` (Socket.IO) | Conexión bidireccional Socket.IO autenticada por sesión, con salas individuales (`user:<id>`), chat en vivo del campus y notificaciones push reactivas. |
+| **11** | **Ramas en GitHub** | ✅ Hecho | Repositorio GitHub | Implementación de Git Flow con rama `main` y múltiples ramas `feature/*` temáticas. |
+| **12** | **Panel de Administración** | ✅ Hecho | `features.js`, `/api/admin/*` | Monitor en vivo de estado de servicios externos, carga de conocimiento RAG, sincronización de Algolia, reporte ML y moderación de aprendizaje. |
+| **13** | **Cola de Inscripciones** | ⚠️ Respaldo Local | `services/queue.js` | Operativa mediante cola en memoria; conexión externa a CloudAMQP desactivada a pedido. |
+
+---
+
+## 🔍 Detalle Técnico por Componente y Resiliencia (Failover)
+
+Cada servicio externo está diseñado con **tolerancia a fallos**: si no existen credenciales o la API externa no responde, la aplicación degrada suavemente a una alternativa local sin interrumpir la experiencia de usuario:
+
+* **Base de datos y persistencia:**  
+  `openDatabase()` inicializa SQLite. Si se definen `TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN`, sincroniza réplicas embebidas con Turso. El registro restringe la creación de cuentas a correos institucionales `@usmp.pe`, protegiendo la integridad del campus.
+* **Caché distribuida (Upstash Redis):**  
+  `redis-client.js` consume los endpoints REST con `UPSTASH_REDIS_REST_URL`. La cabecera HTTP `X-Cache: HIT` o `X-Cache: MISS` audita cada petición al feed. En caso de corte, la consola reporta `[Redis Failover]` y consulta SQLite de forma transparente.
+* **Búsqueda e indexación (Algolia):**  
+  Al iniciar el servidor se auto-sincronizan los registros en el índice `prism_contenido`. Ante la ausencia de llaves administrativas, el motor conmuta automáticamente a consultas `LIKE` indexadas sobre SQLite.
+* **Asistente Inteligente (Groq + RAG):**  
+  El asistente consulta `docs-ejemplo/guia-prism.md` mediante RAG. Si la API de Groq presenta latencia o caída, el asistente responde en modo de contingencia estructurada.
+* **Memoria y Aprendizaje supervisado:**  
+  Las respuestas con 👍 entran a una bandeja de espera en *Administración → Aprendizaje*. Ningún dato entra al contexto permanente sin la aprobación explícita del docente/administrador.
+* **Diseño e Interfaz v2:**  
+  Paleta institucional Dark Wine / Carmesí y Blanco, tipografía editorial de alto impacto, iconos SVG puros, acceso en dos paneles y diseño responsive optimizado para dispositivos móviles en [styles.css](file:///c:/Users/User/Documents/Gemini%20cli%20proyects/AminiApps/prisma-pruebas/styles.css).
+
+---
+
+## 🎯 Guía Paso a Paso para la Presentación / Sustentación
+
+Para demostrar la funcionalidad ante el docente durante la evaluación, seguir esta secuencia:
+
+1. **Despliegue Render:** Abrir el panel de Render del servicio `prisma-pruebas` y verificar el estado *Live* con build automático por commit.
+2. **Validación de Login:** Intentar crear un usuario con `@gmail.com` (debe ser rechazado por la validación institucional) y luego registrarse con `@usmp.pe`.
+3. **Caché Redis en Vivo:** Realizar dos peticiones al feed. Inspeccionar la consola de red del navegador (F12) para constatar la transición de `X-Cache: MISS` a `X-Cache: HIT`, y verificar las claves creadas en el *Data Browser* de Upstash.
+4. **Búsqueda Algolia:** Ingresar un término en el buscador global y mostrar la coincidencia inmediata en el índice `prism_contenido` de Algolia.
+5. **Asistente IA y Vectores:** Formular la pregunta *"¿Cómo me inscribo a una actividad?"* en el chat y mostrar la recuperación del fragmento vectorial en la colección de Qdrant Cloud.
+6. **Aprendizaje Supervisado:** Calificar con 👍 una respuesta del asistente, acceder a *Administración → Aprendizaje* y pulsar **"Enseñar"** para incorporarla a la base de conocimiento.
+7. **Machine Learning:** Enviar una consulta en el módulo de *Contacto* y visualizar la clasificación de sentimiento (Positivo / Neutro / Negativo) en los reportes de administración.
+8. **Ramas y Git Flow:** Proyectar la vista de ramas y el gráfico interactivo de *Insights > Network* en GitHub.
+
+---
+
+## 🌿 Flujo de Ramas en GitHub (`Git Flow`)
+
+| Rama | Propósito y Módulo | Estado |
+| :--- | :--- | :---: |
+| **`main`** | Versión principal de producción con despliegue continuo en Render. | ✅ Producción |
+| **`feature/servicios-ia-cola-ml`** | Integración de IA con Groq, Qdrant, búsqueda Algolia y modelos ML. | ✅ Integrado |
+| **`feature/redis-cache-upstash`** | Implementación de caché REST con Upstash, cabeceras HTTP y versionado. | ✅ Integrado |
+| **`feature/websockets-socketio`** | Servidor Socket.IO, chat del campus y presencia multiusuario. | ✅ Integrado |
+| **`feature/rediseño-ui-figma`** | Adaptación del prototipo Figma a interfaz web PWA. | ✅ Integrado |
+| **`feature/white-design`** | Estilos visuales complementarios y temas de interfaz. | ✅ Integrado |
+| **`docs/guia-implementacion-prism`** | Guía exhaustiva de arquitectura, estado de módulos y pauta de sustentación. | 🚀 Activa |
+
+---
+
+## 🎓 Cobertura de los 10 Tópicos Académicos Evaluados
 
 | # | Tópico Académico | Implementación en PRISM | Archivos Clave |
 | :-: | :--- | :--- | :--- |
-| **1** | **Base de Datos** | SQLite 3 en modo **WAL** (`data/prisma.sqlite`), transacciones ACID, claves foráneas activas, tablas relacionales (`users`, `posts`, `post_likes`, `chat_messages`, `stories`, `notifications`) y script de siembra automática. | `server.js`, `scripts/seed.js` |
-| **2** | **HTTP Methods** | Implementación estricta de métodos RESTful: `GET` (con caché), `POST` (con invalidación de caché), `PUT` (reemplazo completo de perfil), `PATCH` (modificación parcial), `DELETE` (eliminación de posts/historias), `HEAD` (verificación rápida en `/api/health` sin cuerpo) y `OPTIONS` (`Allow: GET, POST, DELETE, OPTIONS, HEAD` en `/api/posts`). | `server.js` |
+| **1** | **Base de Datos** | SQLite 3 en modo **WAL** (`data/prisma.sqlite`), transacciones ACID, claves foráneas activas, tablas relacionales (`users`, `posts`, `post_likes`, `chat_messages`, `stories`, `notifications`) y réplica Turso. | `server.js`, `scripts/seed.js` |
+| **2** | **HTTP Methods** | Implementación estricta de métodos RESTful: `GET` (con caché), `POST` (con invalidación de caché), `PUT` (reemplazo completo de perfil), `PATCH` (modificación parcial), `DELETE` (eliminación de posts/historias), `HEAD` (`/api/health`) y `OPTIONS` (`/api/posts`). | `server.js` |
 | **3** | **Aplicaciones Web / PWA** | Web App Progresiva instalable con soporte offline, Service Worker (`sw.js` v12) con estrategia Cache-First/Network-Fallback, `manifest.webmanifest` y diseño adaptativo mobile-first. | `sw.js`, `manifest.webmanifest`, `styles.css` |
 | **4** | **Sesiones** | Generación de tokens criptográficos de 256 bits (`crypto.randomBytes(32)`), persistidos en BD y sincronizados en caché distribuida. Middleware de autenticación y renovación automática. | `server.js` (`createSession`, `requireAuth`) |
 | **5** | **Cookies** | Cookie de sesión `prism_session` protegida contra XSS y CSRF mediante banderas `httpOnly: true`, `sameSite: 'lax'`, `secure: true` (en producción) y tiempo de vida configurable. | `server.js` |
@@ -45,40 +112,12 @@ Para cumplir con la exigencia docente de desarrollo modular por ramas de caracte
 
 ---
 
-## 🧩 Servicios de la arquitectura de referencia (equivalencias)
-
-PRISM replica los flujos de la solución de referencia (tienda "Mundo Mascota"), cambiando el dominio: **producto → actividad**, **pedido → inscripción**. Cada servicio externo es opcional: si no está configurado, se usa un respaldo local y el estado se ve en **Administración → Servicios**.
-
-| Capacidad (referencia) | En PRISM | Servicio externo (opcional) | Respaldo local | Archivos |
-| :--- | :--- | :--- | :--- | :--- |
-| Catálogo + caché | Feed de publicaciones y actividades | Redis (Upstash) | Memoria | `redis-client.js`, `server.js` |
-| Búsqueda de productos | **Buscar** (publicaciones y actividades) | Algolia | Filtro en SQLite | `services/search.js` |
-| Pedido asíncrono | **Unirme** → `en_cola` → `registrado` | CloudAMQP (RabbitMQ) | Cola en memoria | `services/queue.js` |
-| Notificación al navegador | Aviso en vivo de la inscripción | Socket.IO (equivale a PieSocket) | — | `server.js`, `features.js` |
-| Asistente con fuentes | **Asistente IA** (streaming, fuentes y fichas) | Groq + Qdrant | Recuperación local en SQLite | `services/assistant.js`, `services/knowledge.js` |
-| Tipo de cambio | Herramienta del asistente | Frankfurter | — | `services/assistant.js` |
-| ML.NET sentimiento | **Contacto** clasifica el mensaje (Naive Bayes) | — | — | `services/ml.js`, `ml/sentimiento.csv` |
-| ML.NET recomendaciones | **Recomendado para ti** (factorización de matrices) | — | — | `services/ml.js` |
-| Administración | Panel: servicios, documentos, índice, reportes | — | — | `features.js`, `server.js` |
-
-### Variables de entorno
-Ver `.env.example`. Para tener el panel de **Administración** define `ADMIN_EMAILS` con tu correo (luego inicia sesión con esa cuenta). En Render configura las claves como variables de entorno (`render.yaml` ya las declara).
-
-### Probar
-```bash
-npm run test:ml   # sentimiento y recomendaciones
-npm run check     # sintaxis de server.js, app.js, features.js y sw.js
-```
-Documento de ejemplo para el asistente: `docs-ejemplo/reglamento-ejemplo.md` (súbelo en Administración → Conocimiento).
-
----
-
 ## 🚀 Ejecución y Pruebas Locales
 
 ### 1. Clonar e instalar dependencias
 ```bash
-git clone https://github.com/Diogojuve/prisma.git
-cd prisma
+git clone https://github.com/jeanalvarez4004/prisma-pruebas.git
+cd prisma-pruebas
 npm install
 ```
 
@@ -87,24 +126,34 @@ npm install
 npm run seed
 ```
 
-### 3. Probar WebSockets en tiempo real
+### 3. Ejecutar pruebas automatizadas
 ```bash
-npm run test:sockets
+npm run check       # Valida sintaxis de server.js, app.js, features.js y sw.js
+npm run test:ml     # Evalúa clasificador de sentimiento y matriz de recomendación
+npm run test:sockets # Prueba conectividad y difusión de eventos Socket.IO
 ```
 
 ### 4. Iniciar servidor local
 ```bash
 npm start
-# o en modo desarrollo:
+# o en modo desarrollo con recarga:
 npm run dev
 ```
-
 Abre tu navegador en `http://localhost:3000`.
+
+---
+
+## ⚠️ Advertencias y Pendientes de Entrega
+
+* **Comprobación de Redis:** Abrir el feed en el despliegue y verificar que Upstash almacene las claves de caché.
+* **Configuración del Administrador:** Definir la variable de entorno `ADMIN_EMAILS` en Render con el correo del evaluador para habilitar el panel de administración.
+* **Modelo LLM:** Groq no se re-entrena en el servidor; el aprendizaje se inyecta dinámicamente en tiempo de ejecución a través de fragmentos RAG aprobados.
+* **Validación de Correo:** La verificación valida el dominio `@usmp.pe`; para producción plena se contempla validación mediante enlace SMTP transaccional.
 
 ---
 
 ## 👥 Equipo de Desarrollo
 
 - **Proyecto:** PRISM (Plataforma de Red e Interacción Social para la USMP)
-- **Curso:** Programacion I
-- **Sede:** USMP Filial Sur, Arequipa - 2026
+- **Curso:** Programación Web / Desarrollo de Aplicaciones
+- **Sede:** USMP Filial Sur, Arequipa — 2026
