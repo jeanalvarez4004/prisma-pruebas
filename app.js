@@ -808,7 +808,29 @@ function openPostModal(openCamera = false) {
     ${modalHead('Compartir', 'Nueva publicación', 'Tu publicación aparecerá en el inicio de la comunidad.')}
     <form id="post-form" class="modal-form">
       <label for="post-body">¿Qué quieres compartir?</label>
-      <textarea id="post-body" name="body" maxlength="1200" placeholder="Escribe aquí…"></textarea>
+      <textarea id="post-body" name="body" maxlength="1200" placeholder="Escribe aquí… (el modelo ML analizará el tema y tono en vivo)"></textarea>
+
+      <!-- Asistente de Machine Learning en vivo -->
+      <div id="ml-post-panel" class="ml-post-panel" hidden>
+        <div class="ml-post-header">
+          <span class="ml-chip-tag">✦ ML Campus Classifier</span>
+          <span id="ml-sentiment-tag" class="ml-sentiment-tag is-neutral">😊 Tono: Neutro</span>
+        </div>
+        <div class="ml-prediction-row">
+          <div class="ml-pred-info">
+            <small>Sugerencia de categoría:</small>
+            <div class="ml-pred-val">
+              <strong id="ml-cat-val">Comunidad</strong>
+              <span id="ml-conf-val" class="ml-conf-badge">94%</span>
+            </div>
+          </div>
+          <button id="ml-btn-apply" type="button" class="ml-apply-button" title="Asignar automáticamente esta categoría">
+            ✓ Aplicar categoría
+          </button>
+        </div>
+        <p id="ml-toxic-warning" class="ml-warning-text" hidden></p>
+      </div>
+
       <label for="post-category">Categoría</label>
       <select id="post-category" name="category">
         ${POST_CATEGORIES.filter((category) => category !== 'Todos').map((category) => `<option value="${category}">${category}</option>`).join('')}
@@ -818,6 +840,72 @@ function openPostModal(openCamera = false) {
       <img id="post-photo-preview" class="photo-preview" alt="Vista previa de la foto" hidden />
       <button class="primary-button" type="submit">Publicar ahora <span>→</span></button>
     </form>`);
+
+  const postBody = document.getElementById('post-body');
+  if (postBody) {
+    let mlTimer = null;
+    postBody.addEventListener('input', () => {
+      const text = postBody.value.trim();
+      const panel = document.getElementById('ml-post-panel');
+      if (!panel) return;
+      if (text.length < 5) {
+        panel.hidden = true;
+        return;
+      }
+      clearTimeout(mlTimer);
+      mlTimer = setTimeout(async () => {
+        try {
+          const res = await request(`/api/ml/predict?text=${encodeURIComponent(text)}`);
+          if (!document.getElementById('ml-post-panel')) return;
+          panel.hidden = false;
+
+          const catVal = document.getElementById('ml-cat-val');
+          const confVal = document.getElementById('ml-conf-val');
+          const sentTag = document.getElementById('ml-sentiment-tag');
+          const toxicWarn = document.getElementById('ml-toxic-warning');
+
+          if (catVal && res.category) {
+            catVal.textContent = res.category.label;
+            const pct = Math.round((res.category.probability || 0.5) * 100);
+            confVal.textContent = `${pct}% conf.`;
+          }
+
+          if (sentTag && res.sentiment) {
+            sentTag.textContent = res.sentiment.tone || 'Neutro';
+            sentTag.className = 'ml-sentiment-tag ' + (
+              res.isToxic ? 'is-danger' :
+              res.sentiment.label === 'positivo' ? 'is-positive' :
+              res.sentiment.label === 'negativo' ? 'is-negative' : 'is-neutral'
+            );
+          }
+
+          if (toxicWarn) {
+            if (res.isToxic && res.warning) {
+              toxicWarn.textContent = `⚠️ ${res.warning}`;
+              toxicWarn.hidden = false;
+            } else {
+              toxicWarn.hidden = true;
+            }
+          }
+        } catch {}
+      }, 160);
+    });
+
+    const applyBtn = document.getElementById('ml-btn-apply');
+    if (applyBtn) {
+      applyBtn.addEventListener('click', () => {
+        const catVal = document.getElementById('ml-cat-val')?.textContent;
+        const select = document.getElementById('post-category');
+        if (catVal && select) {
+          select.value = catVal;
+          select.classList.add('pulse-highlight');
+          setTimeout(() => select.classList.remove('pulse-highlight'), 800);
+          showToast(`Categoría "${catVal}" asignada por el modelo ML`);
+        }
+      });
+    }
+  }
+
   if (openCamera) document.getElementById('post-photo')?.click();
 }
 
