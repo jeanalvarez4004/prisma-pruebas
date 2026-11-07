@@ -844,6 +844,10 @@ function openModal(content, small = false) {
 }
 
 function closeModal(clearPending = true) {
+  if (currentActivityMap) {
+    try { currentActivityMap.remove(); } catch {}
+    currentActivityMap = null;
+  }
   const focusTarget = state.lastFocusedElement;
   modalRoot.innerHTML = '';
   document.body.classList.remove('modal-open');
@@ -966,6 +970,141 @@ function openPostModal(openCamera = false) {
   if (openCamera) document.getElementById('post-photo')?.click();
 }
 
+let currentActivityMap = null;
+let cachedMapboxToken = null;
+let mapboxTokenPromise = null;
+
+async function getMapboxToken() {
+  if (cachedMapboxToken !== null) return cachedMapboxToken;
+  if (window.__MAPBOX_TOKEN) {
+    cachedMapboxToken = window.__MAPBOX_TOKEN;
+    return cachedMapboxToken;
+  }
+  if (!mapboxTokenPromise) {
+    mapboxTokenPromise = fetch('/api/config/mapbox')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        cachedMapboxToken = (data && data.token) ? String(data.token).trim() : '';
+        return cachedMapboxToken;
+      })
+      .catch(() => {
+        cachedMapboxToken = '';
+        return '';
+      });
+  }
+  return mapboxTokenPromise;
+}
+
+const CAMPUS_PRESETS = {
+  campus: { name: 'Campus USMP Filial Sur (José Luis Bustamante y Rivero)', lng: -71.52190, lat: -16.42319 },
+  canchas: { name: 'Canchas deportivas USMP (Campus JLByR)', lng: -71.52120, lat: -16.42350 },
+  biblioteca: { name: 'Biblioteca Central USMP (Campus JLByR)', lng: -71.52240, lat: -16.42280 },
+  pabellon: { name: 'Pabellón de Aulas USMP (Campus JLByR)', lng: -71.52280, lat: -16.42300 },
+  plaza: { name: 'Plaza de Armas de Arequipa (Centro)', lng: -71.53690, lat: -16.39880 },
+};
+
+async function initActivityMap() {
+  const container = document.getElementById('activity-map');
+  if (!container) return;
+
+  if (currentActivityMap) {
+    try { currentActivityMap.remove(); } catch {}
+    currentActivityMap = null;
+  }
+
+  const locInput = document.getElementById('activity-location');
+  const coordBadge = document.getElementById('activity-map-coords');
+
+  function updateBadgeAndInput(lng, lat, customName = null) {
+    if (coordBadge) {
+      coordBadge.textContent = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    }
+    if (customName && locInput) {
+      locInput.value = customName;
+    }
+  }
+
+  document.querySelectorAll('[data-loc-preset]').forEach((btn) => {
+    btn.onclick = () => {
+      const key = btn.dataset.locPreset;
+      const preset = CAMPUS_PRESETS[key];
+      if (!preset) return;
+      document.querySelectorAll('.activity-map-preset-btn').forEach((b) => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
+      updateBadgeAndInput(preset.lng, preset.lat, preset.name);
+      if (currentActivityMap) {
+        currentActivityMap.flyTo({ center: [preset.lng, preset.lat], zoom: 16 });
+        if (currentActivityMap._currentMarker) {
+          currentActivityMap._currentMarker.setLngLat([preset.lng, preset.lat]);
+        }
+      }
+    };
+  });
+
+  const token = await getMapboxToken();
+  if (!token) {
+    container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted,#71717a);font-size:0.85rem;padding:1rem;text-align:center;">🗺️ Mapa disponible configurando <code>MAPBOX_TOKEN</code> en variables de entorno.<br/>Puedes usar los atajos de abajo para seleccionar el lugar.</div>';
+    return;
+  }
+
+  if (!window.mapboxgl) {
+    console.warn('[Mapbox] mapboxgl no está disponible aún.');
+    return;
+  }
+
+  window.mapboxgl.accessToken = token;
+  const initial = CAMPUS_PRESETS.campus;
+
+  const map = new window.mapboxgl.Map({
+    container: 'activity-map',
+    style: 'mapbox://styles/mapbox/streets-v12',
+    center: [initial.lng, initial.lat],
+    zoom: 15.6,
+  });
+  currentActivityMap = map;
+
+  map.addControl(new window.mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
+
+  const marker = new window.mapboxgl.Marker({
+    color: '#b3132b',
+    draggable: true,
+  })
+    .setLngLat([initial.lng, initial.lat])
+    .addTo(map);
+
+  map._currentMarker = marker;
+
+  function updateCoords(lng, lat, customName = null) {
+    updateBadgeAndInput(lng, lat, customName);
+    if (customName) return;
+    fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}&types=poi,address,neighborhood,place&limit=1`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && data.features && data.features.length && locInput) {
+          const place = data.features[0];
+          locInput.value = place.text || place.place_name || locInput.value;
+        }
+      })
+      .catch(() => {});
+  }
+
+  map.on('click', (e) => {
+    marker.setLngLat(e.lngLat);
+    updateCoords(e.lngLat.lng, e.lngLat.lat);
+    document.querySelectorAll('.activity-map-preset-btn').forEach((b) => b.classList.remove('is-active'));
+  });
+
+  marker.on('dragend', () => {
+    const p = marker.getLngLat();
+    updateCoords(p.lng, p.lat);
+    document.querySelectorAll('.activity-map-preset-btn').forEach((b) => b.classList.remove('is-active'));
+  });
+
+  setTimeout(() => {
+    try { map.resize(); } catch {}
+  }, 220);
+}
+
 function openActivityModal() {
   openModal(`
     ${modalHead('Comunidad', 'Crear una actividad', 'Define cuántos lugares necesitas y deja que otros se conecten contigo.')}
@@ -978,12 +1117,33 @@ function openActivityModal() {
         <div><label for="activity-category">Tipo</label><select id="activity-category" name="category">${ACTIVITY_CATEGORIES.map((category) => `<option value="${category}">${category}</option>`).join('')}</select></div>
         <div><label for="activity-needed">Personas que faltan</label><input id="activity-needed" name="peopleNeeded" type="number" min="1" max="50" value="1" required /></div>
       </div>
+
+      <!-- Selector de Ubicación con Mapbox -->
+      <div class="activity-map-section">
+        <div class="activity-map-label-row">
+          <label>📍 Ubicación en el mapa (Arequipa)</label>
+          <span class="activity-map-hint">Toca el mapa o arrastra el marcador</span>
+        </div>
+        <div id="activity-map" class="activity-map-container">
+          <div id="activity-map-coords" class="activity-map-coord-badge">USMP JLByR: -16.4232, -71.5219</div>
+        </div>
+        <div class="activity-map-presets">
+          <button type="button" class="activity-map-preset-btn is-active" data-loc-preset="campus">🏛️ Campus USMP (JLByR)</button>
+          <button type="button" class="activity-map-preset-btn" data-loc-preset="canchas">⚽ Canchas deportivas</button>
+          <button type="button" class="activity-map-preset-btn" data-loc-preset="biblioteca">📚 Biblioteca Central</button>
+          <button type="button" class="activity-map-preset-btn" data-loc-preset="pabellon">🏢 Pabellón de Aulas</button>
+          <button type="button" class="activity-map-preset-btn" data-loc-preset="plaza">🌳 Plaza de Armas</button>
+        </div>
+      </div>
+
       <div class="form-two-columns">
-        <div><label for="activity-location">Lugar</label><input id="activity-location" name="location" maxlength="120" placeholder="Ej. Cancha del campus" /></div>
+        <div><label for="activity-location">Lugar / Referencia</label><input id="activity-location" name="location" maxlength="120" value="Campus USMP Filial Sur (José Luis Bustamante y Rivero)" placeholder="Ej. Cancha del campus" /></div>
         <div><label for="activity-date">Fecha <span class="optional">opcional</span></label><input id="activity-date" name="eventDate" type="date" /></div>
       </div>
       <button class="primary-button" type="submit">Publicar actividad <span>→</span></button>
     </form>`);
+
+  initActivityMap();
 }
 
 function openProfileModal() {

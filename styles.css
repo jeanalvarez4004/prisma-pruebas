@@ -2988,3 +2988,84 @@ h1, h2, .auth-card h2 { font-family: var(--serif); letter-spacing: -.01em; }
   .topbar-weather { padding: 6px 10px; gap: 6px; }
   .topbar-actions > #sound-toggle { display: none; }
 }
+
+/* Selector de Mapa en Creación de Actividades (Mapbox) */
+.activity-map-section {
+  margin: 10px 0 16px;
+}
+.activity-map-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.activity-map-label-row label {
+  margin: 0 !important;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #302329;
+}
+.activity-map-hint {
+  font-size: 0.74rem;
+  color: #8a777f;
+  font-weight: 500;
+}
+.activity-map-container {
+  width: 100%;
+  height: 220px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid #eadfe3;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  position: relative;
+  background: #f5f0f2;
+}
+.activity-map-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.activity-map-preset-btn {
+  font-size: 0.76rem;
+  padding: 5px 11px;
+  border-radius: 20px;
+  border: 1px solid #eadfe3;
+  background: #ffffff;
+  color: #55444b;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
+.activity-map-preset-btn:hover {
+  background: #faf4f6;
+  border-color: #d92f61;
+  color: #b3132b;
+}
+.activity-map-preset-btn.is-active {
+  background: #b3132b;
+  color: #ffffff;
+  border-color: #b3132b;
+}
+.activity-map-coord-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(4px);
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.70rem;
+  font-weight: 600;
+  color: #55444b;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  pointer-events: none;
+  z-index: 2;
+}
+.mapboxgl-ctrl-group {
+  border-radius: 8px !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12) !important;
+}
