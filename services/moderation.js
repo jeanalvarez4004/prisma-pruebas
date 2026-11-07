@@ -39,6 +39,11 @@ const BLOCKLIST = [
   'pendejo', 'pendeja', 'marica', 'maricon', 'zorra', 'malparido', 'hijueputa',
   'gilipollas', 'imbecil', 'idiota', 'estupido', 'estupida', 'retrasado', 'retrasada',
   'te voy a matar', 'voy a matarte', 'suicidate', 'nudes',
+  // Jerga peruana
+  'gampi', 'conchasumadre', 'conchasumare', 'conchatumare', 'ctmr', 'csmr', 'chucha', 'chuchatumare',
+  'webon', 'webona', 'huevonazo', 'cojudazo', 'cojudaza', 'rosquete', 'cabro', 'cabrazo',
+  'pichulin', 'mongol', 'mongolo', 'tarado', 'tarada', 'baboso', 'babosa', 'lacra', 'perra',
+  'malnacido', 'malnacida', 'carajo', 'jodete', 'chupapinga', 'pinga', 'cachero', 'cachera',
   'fuck', 'shit', 'bitch', 'dick', 'pussy', 'nigger', 'faggot',
   // Palabras como "sexo", "violación", "desnudo" se dejan fuera a propósito:
   // pueden ser legítimas (salud, derechos). Las evalúa OpenAI por contexto.
@@ -88,7 +93,8 @@ function localCheck(text) {
     const w = normalize(word);
     if (!w) continue;
     // Palabra completa (evita falsos positivos tipo "computadora")
-    if (norm.includes(` ${w} `)) return word;
+    // También plural ("gampis", "cojudos", "maricones")
+    if (norm.includes(` ${w} `) || norm.includes(` ${w}s `) || norm.includes(` ${w}es `)) return word;
     // Palabras largas escritas separadas por espacios/puntos
     if (w.length >= 5 && flat.includes(w.replace(/\s/g, ''))) return word;
   }
