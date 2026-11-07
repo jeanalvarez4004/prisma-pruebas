@@ -177,4 +177,27 @@ function moderateBody(fields) {
   };
 }
 
-module.exports = { moderateText, moderateBody, localCheck, normalize };
+// Palabras sueltas de la lista, ya normalizadas, para tapar contenido antiguo.
+const SINGLE_WORDS = new Set(BLOCKLIST.map(normalize).filter((w) => w && !w.includes(' ')));
+
+function isBadToken(token) {
+  const w = normalize(token).replace(/\s/g, '');
+  if (!w) return false;
+  if (SINGLE_WORDS.has(w)) return true;
+  if (w.endsWith('es') && SINGLE_WORDS.has(w.slice(0, -2))) return true;
+  if (w.endsWith('s') && SINGLE_WORDS.has(w.slice(0, -1))) return true;
+  return false;
+}
+
+/**
+ * Tapa groserías en texto ya guardado (publicado antes de existir el filtro).
+ * "comer gampi" -> "comer g****". No cambia la base de datos, solo lo que se muestra.
+ */
+function maskText(text) {
+  if (typeof text !== 'string' || !text) return text;
+  return text.replace(/[^\s.,;:!?¡¿()"'«»]+/g, (token) =>
+    isBadToken(token) ? token[0] + '*'.repeat(Math.max(token.length - 1, 3)) : token
+  );
+}
+
+module.exports = { moderateText, moderateBody, localCheck, normalize, maskText };

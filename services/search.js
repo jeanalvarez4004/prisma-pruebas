@@ -1,4 +1,5 @@
 'use strict';
+const { maskText } = require('./moderation');
 
 /**
  * Búsqueda de publicaciones y actividades.
@@ -86,12 +87,12 @@ function toResult(hit) {
   return {
     type: hit.type,
     id: hit.id,
-    title: hit.title,
-    snippet: snippet(hit.body),
+    title: maskText(hit.title),
+    snippet: maskText(snippet(hit.body)),
     category: hit.category,
     author: hit.author,
     career: hit.career,
-    location: hit.location || null,
+    location: maskText(hit.location) || null,
     eventDate: hit.eventDate || null,
     createdAt: hit.createdAt,
   };

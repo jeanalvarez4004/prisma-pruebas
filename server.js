@@ -269,7 +269,7 @@ const assistantService = require('./services/assistant');
 const weatherService = require('./services/weather');
 const mlService = require('./services/ml');
 const memoryService = require('./services/memory');
-const { moderateText, moderateBody } = require('./services/moderation');
+const { moderateText, moderateBody, maskText } = require('./services/moderation');
 
 const POST_CATEGORIES = new Set(['General', 'Académico', 'Comunidad']);
 const ACTIVITY_CATEGORIES = new Set(['Deporte', 'Juego', 'Estudio', 'Transporte', 'Ayuda', 'Otro']);
@@ -547,11 +547,11 @@ function getActivity(activityId, userId) {
   const total = 1 + activity.people_needed;
   return {
     id: activity.id,
-    title: activity.title,
-    description: activity.description,
+    title: maskText(activity.title),
+    description: maskText(activity.description),
     category: activity.category,
     peopleNeeded: activity.people_needed,
-    location: activity.location,
+    location: maskText(activity.location),
     eventDate: activity.event_date,
     createdAt: activity.created_at,
     owner: {
@@ -571,7 +571,7 @@ function getActivity(activityId, userId) {
 function serializePost(post) {
   return {
     id: post.id,
-    body: post.body,
+    body: maskText(post.body),
     category: post.category,
     image: post.image || null,
     createdAt: post.created_at,
@@ -1409,7 +1409,7 @@ app.get('/api/inscripciones/mias', requireAuth, (req, res) => {
 function finishEnrollment(row, status, detail) {
   db.prepare('UPDATE enrollments SET status = ?, detail = ?, updated_at = ? WHERE id = ?').run(status, detail || null, now(), row.id);
   io.to(userRoom(row.user_id)).emit('inscripcion:update', {
-    id: row.id, activityId: row.activity_id, title: row.title, status, detail: detail || null,
+    id: row.id, activityId: row.activity_id, title: maskText(row.title), status, detail: detail || null,
   });
 }
 
@@ -1682,7 +1682,7 @@ io.on('connection', (socket) => {
       FROM chat_messages
       ORDER BY id DESC
       LIMIT 40
-    `).all().reverse();
+    `).all().reverse().map((m) => ({ ...m, t: maskText(m.t) }));
 
     socket.emit('chat:history', history);
   });
