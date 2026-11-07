@@ -35,7 +35,7 @@ const state = {
 const POST_CATEGORIES = ['Todos', 'General', 'Académico', 'Comunidad'];
 const ACTIVITY_CATEGORIES = ['Deporte', 'Juego', 'Estudio', 'Transporte', 'Ayuda', 'Otro'];
 
-function escapeHtml(value) {
+function escapeBase(value) {
   return String(value ?? '').replace(/[&<>"']/g, (character) => ({
     '&': '&amp;',
     '<': '&lt;',
@@ -44,6 +44,38 @@ function escapeHtml(value) {
     "'": '&#39;',
   }[character]));
 }
+
+// El servidor marca las groserías como palabra. Aquí se muestran tapadas (g****)
+// y al tocarlas se ve la palabra; al tocarlas otra vez se vuelven a tapar.
+// El marcado no lleva comillas para que sea seguro incluso dentro de un atributo.
+function escapeHtml(value) {
+  const text = String(value ?? '');
+  if (!text.includes('')) return escapeBase(text);
+  return text.split(/([^]*)/).map((part) => {
+    if (!part.startsWith('') || !part.endsWith('')) return escapeBase(part.replace(/[]/g, ''));
+    const word = part.slice(1, -1);
+    const masked = word.charAt(0) + '*'.repeat(Math.max(word.length - 1, 3));
+    return `<span class=bad-word role=button tabindex=0 aria-pressed=false title=Mostrar><span class=bad-word-mask>${escapeBase(masked)}</span><span class=bad-word-real>${escapeBase(word)}</span></span>`;
+  }).join('');
+}
+
+function toggleBadWord(el) {
+  const open = !el.classList.contains('is-open');
+  el.classList.toggle('is-open', open);
+  el.setAttribute('aria-pressed', String(open));
+  el.title = open ? 'Ocultar' : 'Mostrar';
+}
+document.addEventListener('click', (event) => {
+  const el = event.target.closest && event.target.closest('.bad-word');
+  if (!el) return;
+  event.preventDefault();
+  event.stopPropagation();
+  toggleBadWord(el);
+}, true);
+document.addEventListener('keydown', (event) => {
+  const el = event.target.closest && event.target.closest('.bad-word');
+  if (el && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); toggleBadWord(el); }
+}, true);
 
 function initials(name) {
   const words = String(name || 'P').trim().split(/\s+/).filter(Boolean);
@@ -774,7 +806,7 @@ function layoutActivity(activity) {
           <div class="activity-progress" role="progressbar" aria-valuenow="${activity.joined}" aria-valuemin="0" aria-valuemax="${activity.total}"><span style="width:${progress}%"></span></div>
           <div class="activity-count">${activity.joined} de ${activity.total} personas · ${activity.remaining > 0 ? `faltan ${activity.remaining}` : 'completa'}</div>
         </div>
-        ${activity.isOwner ? `<button class="ghost-button" type="button" data-action="delete-activity" data-id="${activity.id}" title="Eliminar actividad" style="color:#d92f61;">🗑️ Eliminar</button>` : ''}
+        ${activity.isOwner || state.user?.role === 'admin' ? `<button class="ghost-button" type="button" data-action="delete-activity" data-id="${activity.id}" title="Eliminar actividad" style="color:#d92f61;">🗑️ Eliminar</button>` : ''}
         <button class="outline-button activity-join ${buttonClass}" type="button" data-action="join-activity" data-id="${activity.id}" ${buttonDisabled ? 'disabled' : ''}>${buttonText}</button>
       </div>
     </article>`;
@@ -1353,11 +1385,33 @@ function renderNotifications() {
     list.innerHTML = '<div class="empty-state"><span class="empty-icon">♢</span><strong>Todo tranquilo por aquí</strong><p>Cuando alguien interactúe con tu contenido, lo verás aquí.</p></div>';
     return;
   }
-  list.innerHTML = state.notifications.map((notification) => `
+  list.innerHTML = `
+    <button class="text-button notification-clear" type="button" data-action="delete-all-notifications">🗑️ Borrar todas</button>
+    ${state.notifications.map((notification) => `
     <div class="notification-item ${notification.isRead ? '' : 'is-unread'}">
       <span class="notification-item-icon">⌁</span>
-      <div><p>${escapeHtml(notification.message)}</p><time>${escapeHtml(timeAgo(notification.createdAt))}</time></div>
-    </div>`).join('');
+      <div class="notification-item-body"><p>${escapeHtml(notification.message)}</p><time>${escapeHtml(timeAgo(notification.createdAt))}</time></div>
+      <button class="notification-delete" type="button" data-action="delete-notification" data-id="${notification.id}" aria-label="Eliminar notificación" title="Eliminar">×</button>
+    </div>`).join('')}`;
+}
+
+async function deleteNotifications(id) {
+  const actionKey = `notifications:delete:${id || 'all'}`;
+  if (!beginAction(actionKey)) return;
+  const sessionVersion = state.sessionVersion;
+  try {
+    await request(id ? `/api/notifications/${id}` : '/api/notifications', { method: 'DELETE' });
+    if (!isCurrentSession(sessionVersion)) return;
+    state.notifications = id ? state.notifications.filter((n) => String(n.id) !== String(id)) : [];
+    state.feed.unreadNotifications = state.notifications.filter((n) => !n.isRead).length;
+    syncUserUI();
+    renderNotifications();
+    showToast(id ? 'Notificación eliminada.' : 'Notificaciones eliminadas.');
+  } catch (error) {
+    if (isCurrentSession(sessionVersion)) showToast(error.message, true);
+  } finally {
+    endAction(actionKey);
+  }
 }
 
 async function markNotificationsRead() {
@@ -1465,6 +1519,11 @@ async function handleClick(event) {
     toggleNotifications(false);
   } else if (action === 'read-notifications') {
     markNotificationsRead();
+  } else if (action === 'delete-notification') {
+    deleteNotifications(target.dataset.id);
+  } else if (action === 'delete-all-notifications') {
+    if (!state.notifications.length || !confirm('¿Borrar todas tus notificaciones?')) return;
+    deleteNotifications();
   } else if (action === 'delete-post') {
     const id = target.dataset.id;
     if (!id || !confirm('¿Deseas eliminar esta publicación?')) return;

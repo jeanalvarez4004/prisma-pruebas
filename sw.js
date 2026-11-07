@@ -1,4 +1,4 @@
-const CACHE = 'prism-v40-keep-user-typing-preserve-input';
+const CACHE = 'prism-v41-moderacion-borrar-notificaciones';
 const ASSETS = [
   './',
   './index.html',

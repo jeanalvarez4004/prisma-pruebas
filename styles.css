@@ -1697,6 +1697,44 @@ img {
   font-size: 15px;
 }
 
+.notification-item-body { flex: 1; min-width: 0; }
+
+.notification-delete {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.notification-delete:hover,
+.notification-delete:focus-visible { background: var(--accent-soft); color: var(--accent-dark); }
+
+.notification-clear { justify-self: end; margin-bottom: 4px; }
+
+/* Groserías tapadas: se muestran al tocarlas y se ocultan al tocarlas otra vez */
+.bad-word {
+  cursor: pointer;
+  border-radius: 5px;
+  padding: 0 3px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-weight: 700;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.bad-word .bad-word-real { display: none; }
+.bad-word.is-open { background: transparent; color: inherit; font-weight: inherit; outline: 1px dashed var(--accent-soft); }
+.bad-word.is-open .bad-word-real { display: inline; }
+.bad-word.is-open .bad-word-mask { display: none; }
+.bad-word:focus-visible { outline: 2px solid var(--accent-dark); }
+
 .notification-item p {
   margin: 0;
   color: var(--ink-soft);

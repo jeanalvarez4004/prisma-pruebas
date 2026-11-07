@@ -608,7 +608,7 @@ function serializeNotification(notification) {
   return {
     id: notification.id,
     type: notification.type,
-    message: notification.message,
+    message: maskText(notification.message),
     isRead: Boolean(notification.is_read),
     createdAt: notification.created_at,
   };
@@ -1092,16 +1092,26 @@ app.post('/api/activities/:id/join', requireAuth, joinRateLimit, (req, res) => {
 app.delete('/api/activities/:id', requireAuth, asyncRoute(async (req, res) => {
   const activityId = Number(req.params.id);
   if (!Number.isInteger(activityId)) return validationError(res, 'ID de actividad no válido.');
-  const activity = db.prepare('SELECT owner_id FROM activities WHERE id = ?').get(activityId);
+  const activity = db.prepare('SELECT owner_id, title FROM activities WHERE id = ?').get(activityId);
   if (!activity) return res.status(404).json({ error: 'La actividad ya no existe.' });
-  if (activity.owner_id !== req.user.id) {
+  const isAdminUser = req.user.role === 'admin';
+  if (activity.owner_id !== req.user.id && !isAdminUser) {
     return res.status(403).json({ error: 'No tienes permiso para eliminar esta actividad.' });
   }
 
+  // Avisar a los inscritos (y al dueño si la borró un admin)
+  const notify = new Set(db.prepare('SELECT user_id FROM activity_members WHERE activity_id = ?')
+    .all(activityId).map((row) => row.user_id));
+  notify.add(activity.owner_id);
+  notify.delete(req.user.id);
+  const notice = `La actividad "${activity.title}" fue eliminada.`;
   db.transaction(() => {
     db.prepare('DELETE FROM activity_members WHERE activity_id = ?').run(activityId);
     db.prepare('DELETE FROM activities WHERE id = ?').run(activityId);
+    const insert = db.prepare("INSERT INTO notifications (user_id, type, message, created_at) VALUES (?, 'activity', ?, ?)");
+    for (const userId of notify) insert.run(userId, notice, now());
   })();
+  for (const userId of notify) io.to(userRoom(userId)).emit('notification:new', { type: 'activity' });
   searchService.removeRecord('activity', activityId);
   await invalidateFeedCache();
 
@@ -1207,6 +1217,21 @@ app.get('/api/notifications', requireAuth, (req, res) => {
     SELECT COUNT(*) AS count FROM notifications WHERE user_id = ? AND is_read = 0
   `).get(req.user.id).count;
   res.json({ notifications: notifications.map(serializeNotification), unreadNotifications });
+});
+
+// HTTP DELETE /api/notifications/:id (cada usuario borra solo las suyas)
+app.delete('/api/notifications/:id', requireAuth, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return validationError(res, 'ID de notificación no válido.');
+  const result = db.prepare('DELETE FROM notifications WHERE id = ? AND user_id = ?').run(id, req.user.id);
+  if (!result.changes) return res.status(404).json({ error: 'La notificación ya no existe.' });
+  res.json({ ok: true });
+});
+
+// HTTP DELETE /api/notifications (borrar todas las del usuario)
+app.delete('/api/notifications', requireAuth, (req, res) => {
+  const result = db.prepare('DELETE FROM notifications WHERE user_id = ?').run(req.user.id);
+  res.json({ ok: true, deleted: result.changes });
 });
 
 app.post('/api/notifications/read', requireAuth, (req, res) => {
@@ -1590,7 +1615,7 @@ app.get('/api/admin/reportes', requireAdmin, (req, res) => {
     SELECT c.subject, c.message, c.sentiment, c.probability, c.created_at AS createdAt, u.name AS author
     FROM contact_messages c LEFT JOIN users u ON u.id = c.user_id
     ORDER BY c.created_at DESC LIMIT 50
-  `).all();
+  `).all().map((m) => ({ ...m, subject: maskText(m.subject), message: maskText(m.message) }));
   res.json({ summary, porDia, mensajes });
 });
 
