@@ -159,6 +159,10 @@ function initWebSocket() {
     }
   });
 
+  socket.on('chat:blocked', (data) => {
+    showToast((data && data.message) || 'Tu mensaje no está permitido en PRISM.', true);
+  });
+
   socket.on('chat:message', (msg) => {
     const isMe = state.user && (state.user.name === msg.u);
     const item = {
@@ -770,6 +774,7 @@ function layoutActivity(activity) {
           <div class="activity-progress" role="progressbar" aria-valuenow="${activity.joined}" aria-valuemin="0" aria-valuemax="${activity.total}"><span style="width:${progress}%"></span></div>
           <div class="activity-count">${activity.joined} de ${activity.total} personas · ${activity.remaining > 0 ? `faltan ${activity.remaining}` : 'completa'}</div>
         </div>
+        ${activity.isOwner ? `<button class="ghost-button" type="button" data-action="delete-activity" data-id="${activity.id}" title="Eliminar actividad" style="color:#d92f61;">🗑️ Eliminar</button>` : ''}
         <button class="outline-button activity-join ${buttonClass}" type="button" data-action="join-activity" data-id="${activity.id}" ${buttonDisabled ? 'disabled' : ''}>${buttonText}</button>
       </div>
     </article>`;
@@ -1598,6 +1603,18 @@ async function handleClick(event) {
     document.getElementById('profile-photo')?.click();
   } else if (action === 'remove-profile-photo') {
     updateImagePreview('profile-photo', 'profile-photo-preview', null, 'pendingProfileImage');
+  } else if (action === 'delete-activity') {
+    const id = target.dataset.id;
+    if (!id || !confirm('¿Deseas eliminar esta actividad? También se quitará a quienes se hayan unido.')) return;
+    try {
+      await request(`/api/activities/${id}`, { method: 'DELETE' });
+      showToast('🗑️ Actividad eliminada');
+      await refreshFeed();
+      await refreshProfileIfVisible();
+      await renderPage();
+    } catch (e) {
+      showToast(e.message, true);
+    }
   } else if (action === 'delete-story') {
     handleDeleteStory(target.dataset.id);
   } else if (action === 'load-more-posts') {

@@ -269,6 +269,7 @@ const assistantService = require('./services/assistant');
 const weatherService = require('./services/weather');
 const mlService = require('./services/ml');
 const memoryService = require('./services/memory');
+const { moderateText, moderateBody, maskText } = require('./services/moderation');
 
 const POST_CATEGORIES = new Set(['General', 'Académico', 'Comunidad']);
 const ACTIVITY_CATEGORIES = new Set(['Deporte', 'Juego', 'Estudio', 'Transporte', 'Ayuda', 'Otro']);
@@ -546,11 +547,11 @@ function getActivity(activityId, userId) {
   const total = 1 + activity.people_needed;
   return {
     id: activity.id,
-    title: activity.title,
-    description: activity.description,
+    title: maskText(activity.title),
+    description: maskText(activity.description),
     category: activity.category,
     peopleNeeded: activity.people_needed,
-    location: activity.location,
+    location: maskText(activity.location),
     eventDate: activity.event_date,
     createdAt: activity.created_at,
     owner: {
@@ -570,7 +571,7 @@ function getActivity(activityId, userId) {
 function serializePost(post) {
   return {
     id: post.id,
-    body: post.body,
+    body: maskText(post.body),
     category: post.category,
     image: post.image || null,
     createdAt: post.created_at,
@@ -918,7 +919,7 @@ app.options('/api/posts', (req, res) => {
 });
 
 // HTTP POST /api/posts (Tópicos: HTTP POST, SQLite WAL, Redis Cache Invalidation)
-app.post('/api/posts', requireAuth, postRateLimit, asyncRoute(async (req, res) => {
+app.post('/api/posts', requireAuth, postRateLimit, moderateBody(['body']), asyncRoute(async (req, res) => {
   const body = cleanText(req.body && req.body.body, 1200);
   const category = POST_CATEGORIES.has(req.body?.category) ? req.body.category : 'General';
   const image = req.body?.image || null;
@@ -998,7 +999,7 @@ app.post('/api/posts/:id/like', requireAuth, likeRateLimit, asyncRoute(async (re
   res.json({ post: serializePost(post) });
 }));
 
-app.post('/api/activities', requireAuth, activityRateLimit, (req, res) => {
+app.post('/api/activities', requireAuth, activityRateLimit, moderateBody(['title', 'description', 'location']), (req, res) => {
   const title = cleanText(req.body && req.body.title, 120);
   const description = cleanText(req.body && req.body.description, 800);
   const category = ACTIVITY_CATEGORIES.has(req.body?.category) ? req.body.category : 'Ayuda';
@@ -1090,6 +1091,26 @@ app.post('/api/activities/:id/join', requireAuth, joinRateLimit, (req, res) => {
   const updated = getActivity(activityId, req.user.id);
   res.json({ activity: updated });
 });
+
+// HTTP DELETE /api/activities/:id (solo el dueño puede borrar su actividad)
+app.delete('/api/activities/:id', requireAuth, asyncRoute(async (req, res) => {
+  const activityId = Number(req.params.id);
+  if (!Number.isInteger(activityId)) return validationError(res, 'ID de actividad no válido.');
+  const activity = db.prepare('SELECT owner_id FROM activities WHERE id = ?').get(activityId);
+  if (!activity) return res.status(404).json({ error: 'La actividad ya no existe.' });
+  if (activity.owner_id !== req.user.id) {
+    return res.status(403).json({ error: 'No tienes permiso para eliminar esta actividad.' });
+  }
+
+  db.transaction(() => {
+    db.prepare('DELETE FROM activity_members WHERE activity_id = ?').run(activityId);
+    db.prepare('DELETE FROM activities WHERE id = ?').run(activityId);
+  })();
+  searchService.removeRecord('activity', activityId);
+  await invalidateFeedCache();
+
+  res.json({ ok: true, message: 'Actividad eliminada correctamente.' });
+}));
 
 app.post('/api/stories', requireAuth, storyRateLimit, (req, res) => {
   const image = req.body && req.body.image;
@@ -1392,7 +1413,7 @@ app.get('/api/inscripciones/mias', requireAuth, (req, res) => {
 function finishEnrollment(row, status, detail) {
   db.prepare('UPDATE enrollments SET status = ?, detail = ?, updated_at = ? WHERE id = ?').run(status, detail || null, now(), row.id);
   io.to(userRoom(row.user_id)).emit('inscripcion:update', {
-    id: row.id, activityId: row.activity_id, title: row.title, status, detail: detail || null,
+    id: row.id, activityId: row.activity_id, title: maskText(row.title), status, detail: detail || null,
   });
 }
 
@@ -1453,7 +1474,7 @@ app.get('/api/ml/predict', requireAuth, (req, res) => {
 });
 
 // --- Contacto con análisis de sentimiento (ML) ------------------------------------
-app.post('/api/contacto', requireAuth, contactRateLimit, (req, res) => {
+app.post('/api/contacto', requireAuth, contactRateLimit, moderateBody(['subject', 'message']), (req, res) => {
   const subject = cleanText(req.body && req.body.subject, 120);
   const message = cleanText(req.body && req.body.message, 1500);
   if (message.length < 10) return validationError(res, 'Escribe un mensaje de al menos 10 caracteres.');
@@ -1665,13 +1686,20 @@ io.on('connection', (socket) => {
       FROM chat_messages
       ORDER BY id DESC
       LIMIT 40
-    `).all().reverse();
+    `).all().reverse().map((m) => ({ ...m, t: maskText(m.t) }));
 
     socket.emit('chat:history', history);
   });
 
-  socket.on('chat:send', (data) => {
+  socket.on('chat:send', async (data) => {
     const text = cleanText(data && data.text, 500);
+    if (text) {
+      const verdict = await moderateText(text);
+      if (!verdict.ok) {
+        socket.emit('chat:blocked', { message: 'Tu mensaje contiene contenido que no está permitido en PRISM.' });
+        return;
+      }
+    }
     if (!text) return;
 
     const senderName = (data.user && data.user.name) || student.name;
