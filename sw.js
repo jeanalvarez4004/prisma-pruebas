@@ -1,4 +1,4 @@
-const CACHE = 'prism-v41-moderacion-borrar-notificaciones';
+const CACHE = 'prism-v42-censura-admin-movil';
 const ASSETS = [
   './',
   './index.html',

@@ -3026,3 +3026,66 @@ h1, h2, .auth-card h2 { font-family: var(--serif); letter-spacing: -.01em; }
   .topbar-weather { padding: 6px 10px; gap: 6px; }
   .topbar-actions > #sound-toggle { display: none; }
 }
+
+/* ===== Optimización celular / laptop / PC ===== */
+/* Las tarjetas dentro de cuadrículas pueden encogerse: evita el desplazamiento lateral en celular. */
+.home-grid > *,
+.post-list > *,
+.surface-card,
+.activity-card,
+.post-card { min-width: 0; }
+.post-body,
+.activity-card p,
+.notification-item p { overflow-wrap: anywhere; }
+html, body { overflow-x: hidden; }
+img, video { max-width: 100%; }
+
+/* Botones e iconos cómodos para el dedo */
+@media (pointer: coarse) {
+  .icon-button,
+  .post-action,
+  .notification-delete { min-width: 40px; min-height: 40px; }
+  .bad-word { padding: 2px 5px; }
+}
+
+@media (max-width: 560px) {
+  .post-card { padding: 14px 14px; }
+  .post-meta-copy small { white-space: normal; }
+}
+
+/* Pantallas grandes: el contenido no se estira demasiado */
+@media (min-width: 1440px) {
+  .page-content { max-width: 1280px; margin-inline: auto; }
+}
+
+/* Celular: portada compacta para que las publicaciones se vean antes */
+@media (max-width: 560px) {
+  .home-welcome { padding: 20px 16px !important; }
+  .home-welcome-inner { gap: 14px; }
+  .home-welcome-content h1 { font-size: 30px; }
+  .home-welcome-content > p:not(.eyebrow) { font-size: 14px; line-height: 1.45; margin-block: 6px 0; }
+  .home-actions { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px !important; }
+  .home-actions > button { min-height: 42px; padding: 8px 6px !important; font-size: 12.5px; white-space: normal; line-height: 1.2; }
+  .weather-card { padding: 14px !important; }
+  .weather-card-footer {
+    display: flex !important;
+    gap: 8px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .weather-card-footer::-webkit-scrollbar { display: none; }
+  .weather-stat-pill { flex: 0 0 auto; min-width: 96px; scroll-snap-align: start; }
+}
+@media (max-width: 560px) {
+  .home-actions > button { grid-column: auto !important; width: auto !important; min-width: 0 !important; }
+  .home-welcome-content,
+  .home-weather-slot { min-height: 0 !important; }
+  .home-actions { margin-top: 14px !important; }
+}
+@media (max-width: 560px) {
+  .home-welcome-content,
+  .home-weather-slot { flex: 0 0 auto !important; }
+}

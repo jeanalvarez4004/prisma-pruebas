@@ -203,4 +203,24 @@ function maskText(text) {
     .replace(/[\p{L}\p{N}@$]+/gu, (token) => (isBadToken(token) ? MARK_OPEN + token + MARK_CLOSE : token));
 }
 
-module.exports = { moderateText, moderateBody, localCheck, normalize, maskText };
+/**
+ * Para usuarios normales: convierte cada palabra marcada en asteriscos completos ("*****").
+ * Así la palabra original nunca llega a su navegador. Solo el admin recibe la marca y puede revelarla.
+ */
+function censorMarked(text) {
+  if (typeof text !== 'string' || !text.includes(MARK_OPEN)) return text;
+  return text.replace(/([^]*)/g, (_, word) => '*'.repeat(Math.max(word.length, 4)));
+}
+
+/** Aplica censorMarked a cualquier respuesta JSON (objetos, listas, textos). */
+function censorPayload(payload) {
+  const json = JSON.stringify(payload);
+  if (json === undefined || !json.includes(MARK_OPEN)) return payload;
+  return JSON.parse(censorMarked(json));
+}
+
+function hasMarked(text) {
+  return typeof text === 'string' && text.includes(MARK_OPEN);
+}
+
+module.exports = { moderateText, moderateBody, localCheck, normalize, maskText, censorMarked, censorPayload, hasMarked };
