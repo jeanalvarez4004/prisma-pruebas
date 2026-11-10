@@ -1,4 +1,4 @@
-const CACHE = 'prism-v41-mapbox-activity-selector';
+const CACHE = 'prism-v43-mapbox-activities';
 const ASSETS = [
   './',
   './index.html',

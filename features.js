@@ -283,7 +283,7 @@
     const empty = !f.chat.length;
     page().innerHTML = `
       <div class="f-page">
-        ${head('Inteligencia artificial', 'Asistente PRISM', 'Pregunta sobre reglamentos, trámites, actividades o tipo de cambio.')}
+        ${head('Inteligencia artificial', 'Asistente PRISM', 'Pregunta sobre reglamentos, trámites, actividades o el clima del campus.')}
         <section id="f-memory" class="surface-card f-memory" aria-live="polite"></section>
         <section class="surface-card f-chat">
           <div id="f-chat-stream" class="f-chat-stream">
@@ -858,7 +858,7 @@
           ${data.mensajes.length ? `<div class="f-scroll"><table class="f-table"><thead><tr><th>Mensaje</th><th>Sentimiento</th><th>De</th><th>Cuándo</th></tr></thead><tbody>
             ${data.mensajes.map((m) => {
               const tag = SENTIMENT[m.sentiment];
-              return `<tr><td>${m.subject ? `<strong>${esc(m.subject)}</strong><br>` : ''}${esc(m.message)}</td>
+              return `<tr><td>${m.inapropiado ? '<span class="f-badge is-red" title="Toca las palabras tapadas para verlas">⚠ Lenguaje inapropiado</span><br>' : ''}${m.subject ? `<strong>${esc(m.subject)}</strong><br>` : ''}${esc(m.message)}</td>
                 <td>${tag ? `<span class="f-badge ${tag.cls}">${tag.label}</span><div class="f-muted">${Math.round((m.probability || 0) * 100)}%</div>` : '<span class="f-badge is-gray">Sin clasificar</span>'}</td>
                 <td>${esc(m.author || '—')}</td><td>${esc(timeAgo(m.createdAt))}</td></tr>`;
             }).join('')}</tbody></table></div>` : '<p class="f-muted" style="margin-top:14px">Todavía no hay mensajes de contacto.</p>'}`;

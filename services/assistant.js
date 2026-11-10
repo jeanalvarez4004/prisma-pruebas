@@ -5,13 +5,12 @@
  * Con GROQ_API_KEY: modelo de Groq (API compatible con OpenAI) con llamadas a herramientas
  *   - buscar_conocimiento -> documentos indexados (Qdrant o SQLite)
  *   - consultar_actividades -> actividades y cupos en SQLite
- *   - tipo_cambio -> Frankfurter
  * y respuesta progresiva (streaming). Sin la clave: responde solo con lo recuperado de los
  * documentos y las actividades, sin generar texto con un LLM.
  */
 const knowledge = require('./knowledge');
 const weather = require('./weather');
-const { fetchJson, normalizeText, sleep } = require('./http');
+const { normalizeText, sleep } = require('./http');
 
 const GROQ_URL = (process.env.GROQ_API_URL || 'https://api.groq.com/openai/v1').replace(/\/$/, '');
 const MAX_ROUNDS = 4;
@@ -31,7 +30,6 @@ Responde siempre en español, de forma breve, cálida, organizada y clara.
 - Para preguntas sobre cómo usar PRISM o qué puede hacer la página, responde con la guía de PRISM incluida abajo.
 - Para preguntas sobre reglamentos, trámites, servicios o información de la universidad usa la herramienta buscar_conocimiento y responde SOLO con lo que devuelva. Si no hay información, dilo con claridad y no inventes.
 - Para preguntas sobre actividades, cupos o planes del campus usa consultar_actividades.
-- Para conversiones de moneda usa tipo_cambio.
 - Si preguntan por el clima, qué ponerse, o si les conviene una actividad (sobre todo al aire libre), o piden recomendaciones para hoy, usa SIEMPRE la herramienta clima_actual y reporta con total exactitud la temperatura_actual_c, sensacion_termica_c y condicion que devuelva la herramienta. No inventes datos del clima ni uses mediciones antiguas.
 - No tienes herramientas para inscribir ni crear nada: indica al estudiante que pulse "Unirme" en la ficha o que lo haga desde Inicio.
 - Usa el contexto del estudiante para personalizar (por ejemplo sugerir actividades de sus intereses), sin repetirlo literalmente ni inventar datos sobre él.`;
@@ -72,22 +70,6 @@ const TOOLS = [
       parameters: { type: 'object', properties: {} },
     },
   },
-  {
-    type: 'function',
-    function: {
-      name: 'tipo_cambio',
-      description: 'Convierte un monto entre monedas usando el tipo de cambio actual (Frankfurter).',
-      parameters: {
-        type: 'object',
-        properties: {
-          monto: { type: 'number' },
-          origen: { type: 'string', description: 'Código ISO, p. ej. USD' },
-          destino: { type: 'string', description: 'Código ISO, p. ej. EUR' },
-        },
-        required: ['monto', 'origen', 'destino'],
-      },
-    },
-  },
 ];
 
 function groqKey() {
@@ -124,19 +106,6 @@ function queryActivities(db, { texto, categoria } = {}, limit = 6) {
       id: a.id, title: a.title, category: a.category, location: a.location, eventDate: a.event_date,
       remaining: Math.max(1 + a.people_needed - a.joined, 0),
     }));
-}
-
-async function exchangeRate({ monto, origen, destino }) {
-  const from = String(origen || '').toUpperCase().slice(0, 3);
-  const to = String(destino || '').toUpperCase().slice(0, 3);
-  const amount = Number(monto);
-  if (!/^[A-Z]{3}$/.test(from) || !/^[A-Z]{3}$/.test(to) || !Number.isFinite(amount)) return { error: 'Monedas o monto no válidos.' };
-  try {
-    const data = await fetchJson(`https://api.frankfurter.dev/v1/latest?amount=${amount}&from=${from}&to=${to}`, {}, 8000);
-    return { monto: amount, origen: from, destino: to, resultado: data.rates?.[to], fecha: data.date };
-  } catch (error) {
-    return { error: `No se pudo obtener el tipo de cambio (${error.message}). Frankfurter solo cubre las monedas del BCE.` };
-  }
 }
 
 async function runTool(name, args, ctx) {
@@ -192,7 +161,6 @@ async function runTool(name, args, ctx) {
       datos_en_vivo: !data.fallback,
     };
   }
-  if (name === 'tipo_cambio') return exchangeRate(args);
   return { error: `Herramienta desconocida: ${name}` };
 }
 

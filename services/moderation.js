@@ -190,14 +190,37 @@ function isBadToken(token) {
 }
 
 /**
- * Tapa groserías en texto ya guardado (publicado antes de existir el filtro).
- * "comer gampi" -> "comer g****". No cambia la base de datos, solo lo que se muestra.
+ * Marca groserías en texto ya guardado (publicado antes de existir el filtro).
+ * "comer gampi" -> "comer gampi". El navegador muestra "g****"; al tocarla
+ * se ve la palabra y al tocarla otra vez se oculta. No cambia la base de datos.
  */
+const MARK_OPEN = '';
+const MARK_CLOSE = '';
 function maskText(text) {
   if (typeof text !== 'string' || !text) return text;
-  return text.replace(/[^\s.,;:!?¡¿()"'«»]+/g, (token) =>
-    isBadToken(token) ? token[0] + '*'.repeat(Math.max(token.length - 1, 3)) : token
-  );
+  return text
+    .replace(/[]/g, '')
+    .replace(/[\p{L}\p{N}@$]+/gu, (token) => (isBadToken(token) ? MARK_OPEN + token + MARK_CLOSE : token));
 }
 
-module.exports = { moderateText, moderateBody, localCheck, normalize, maskText };
+/**
+ * Para usuarios normales: convierte cada palabra marcada en asteriscos completos ("*****").
+ * Así la palabra original nunca llega a su navegador. Solo el admin recibe la marca y puede revelarla.
+ */
+function censorMarked(text) {
+  if (typeof text !== 'string' || !text.includes(MARK_OPEN)) return text;
+  return text.replace(/([^]*)/g, (_, word) => '*'.repeat(Math.max(word.length, 4)));
+}
+
+/** Aplica censorMarked a cualquier respuesta JSON (objetos, listas, textos). */
+function censorPayload(payload) {
+  const json = JSON.stringify(payload);
+  if (json === undefined || !json.includes(MARK_OPEN)) return payload;
+  return JSON.parse(censorMarked(json));
+}
+
+function hasMarked(text) {
+  return typeof text === 'string' && text.includes(MARK_OPEN);
+}
+
+module.exports = { moderateText, moderateBody, localCheck, normalize, maskText, censorMarked, censorPayload, hasMarked };

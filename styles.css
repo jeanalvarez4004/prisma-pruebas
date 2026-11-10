@@ -1697,6 +1697,44 @@ img {
   font-size: 15px;
 }
 
+.notification-item-body { flex: 1; min-width: 0; }
+
+.notification-delete {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.notification-delete:hover,
+.notification-delete:focus-visible { background: var(--accent-soft); color: var(--accent-dark); }
+
+.notification-clear { justify-self: end; margin-bottom: 4px; }
+
+/* Groserías tapadas: se muestran al tocarlas y se ocultan al tocarlas otra vez */
+.bad-word {
+  cursor: pointer;
+  border-radius: 5px;
+  padding: 0 3px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-weight: 700;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.bad-word .bad-word-real { display: none; }
+.bad-word.is-open { background: transparent; color: inherit; font-weight: inherit; outline: 1px dashed var(--accent-soft); }
+.bad-word.is-open .bad-word-real { display: inline; }
+.bad-word.is-open .bad-word-mask { display: none; }
+.bad-word:focus-visible { outline: 2px solid var(--accent-dark); }
+
 .notification-item p {
   margin: 0;
   color: var(--ink-soft);
@@ -2989,6 +3027,7 @@ h1, h2, .auth-card h2 { font-family: var(--serif); letter-spacing: -.01em; }
   .topbar-actions > #sound-toggle { display: none; }
 }
 
+
 /* Selector de Mapa en Creación de Actividades (Mapbox) */
 .activity-map-section {
   margin: 10px 0 16px;
@@ -3068,4 +3107,66 @@ h1, h2, .auth-card h2 { font-family: var(--serif); letter-spacing: -.01em; }
 .mapboxgl-ctrl-group {
   border-radius: 8px !important;
   box-shadow: 0 1px 4px rgba(0,0,0,0.12) !important;
+
+/* ===== Optimización celular / laptop / PC ===== */
+/* Las tarjetas dentro de cuadrículas pueden encogerse: evita el desplazamiento lateral en celular. */
+.home-grid > *,
+.post-list > *,
+.surface-card,
+.activity-card,
+.post-card { min-width: 0; }
+.post-body,
+.activity-card p,
+.notification-item p { overflow-wrap: anywhere; }
+html, body { overflow-x: hidden; }
+img, video { max-width: 100%; }
+
+/* Botones e iconos cómodos para el dedo */
+@media (pointer: coarse) {
+  .icon-button,
+  .post-action,
+  .notification-delete { min-width: 40px; min-height: 40px; }
+  .bad-word { padding: 2px 5px; }
+}
+
+@media (max-width: 560px) {
+  .post-card { padding: 14px 14px; }
+  .post-meta-copy small { white-space: normal; }
+}
+
+/* Pantallas grandes: el contenido no se estira demasiado */
+@media (min-width: 1440px) {
+  .page-content { max-width: 1280px; margin-inline: auto; }
+}
+
+/* Celular: portada compacta para que las publicaciones se vean antes */
+@media (max-width: 560px) {
+  .home-welcome { padding: 20px 16px !important; }
+  .home-welcome-inner { gap: 14px; }
+  .home-welcome-content h1 { font-size: 30px; }
+  .home-welcome-content > p:not(.eyebrow) { font-size: 14px; line-height: 1.45; margin-block: 6px 0; }
+  .home-actions { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px !important; }
+  .home-actions > button { min-height: 42px; padding: 8px 6px !important; font-size: 12.5px; white-space: normal; line-height: 1.2; }
+  .weather-card { padding: 14px !important; }
+  .weather-card-footer {
+    display: flex !important;
+    gap: 8px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .weather-card-footer::-webkit-scrollbar { display: none; }
+  .weather-stat-pill { flex: 0 0 auto; min-width: 96px; scroll-snap-align: start; }
+}
+@media (max-width: 560px) {
+  .home-actions > button { grid-column: auto !important; width: auto !important; min-width: 0 !important; }
+  .home-welcome-content,
+  .home-weather-slot { min-height: 0 !important; }
+  .home-actions { margin-top: 14px !important; }
+}
+@media (max-width: 560px) {
+  .home-welcome-content,
+  .home-weather-slot { flex: 0 0 auto !important; }
 }

@@ -269,7 +269,7 @@ const assistantService = require('./services/assistant');
 const weatherService = require('./services/weather');
 const mlService = require('./services/ml');
 const memoryService = require('./services/memory');
-const { moderateText, moderateBody, maskText } = require('./services/moderation');
+const { moderateText, moderateBody, maskText, censorMarked, censorPayload, hasMarked } = require('./services/moderation');
 
 const POST_CATEGORIES = new Set(['General', 'Académico', 'Comunidad']);
 const ACTIVITY_CATEGORIES = new Set(['Deporte', 'Juego', 'Estudio', 'Transporte', 'Ayuda', 'Otro']);
@@ -608,7 +608,7 @@ function serializeNotification(notification) {
   return {
     id: notification.id,
     type: notification.type,
-    message: notification.message,
+    message: maskText(notification.message),
     isRead: Boolean(notification.is_read),
     createdAt: notification.created_at,
   };
@@ -665,6 +665,20 @@ app.use((req, res, next) => {
 app.use('/api/admin/conocimiento', express.json({ limit: '16mb' }));
 app.use(express.json({ limit: '8mb' }));
 app.use(cookieParser());
+// Censura según quién mira: los usuarios normales reciben "*****" y nunca la palabra original.
+// Solo el admin recibe la palabra marcada y puede revelarla tocándola.
+app.use('/api', (req, res, next) => {
+  const sendJson = res.json.bind(res);
+  res.json = (payload) => {
+    const json = JSON.stringify(payload);
+    if (!hasMarked(json)) return sendJson(payload);
+    const viewer = req.user || currentUser(req);
+    if (viewer && viewer.role === 'admin') return sendJson(payload);
+    res.type('application/json');
+    return res.send(censorMarked(json));
+  };
+  next();
+});
 app.use('/api', (req, res, next) => {
   res.setHeader('Cache-Control', 'no-store');
   next();
@@ -1096,16 +1110,26 @@ app.post('/api/activities/:id/join', requireAuth, joinRateLimit, (req, res) => {
 app.delete('/api/activities/:id', requireAuth, asyncRoute(async (req, res) => {
   const activityId = Number(req.params.id);
   if (!Number.isInteger(activityId)) return validationError(res, 'ID de actividad no válido.');
-  const activity = db.prepare('SELECT owner_id FROM activities WHERE id = ?').get(activityId);
+  const activity = db.prepare('SELECT owner_id, title FROM activities WHERE id = ?').get(activityId);
   if (!activity) return res.status(404).json({ error: 'La actividad ya no existe.' });
-  if (activity.owner_id !== req.user.id) {
+  const isAdminUser = req.user.role === 'admin';
+  if (activity.owner_id !== req.user.id && !isAdminUser) {
     return res.status(403).json({ error: 'No tienes permiso para eliminar esta actividad.' });
   }
 
+  // Avisar a los inscritos (y al dueño si la borró un admin)
+  const notify = new Set(db.prepare('SELECT user_id FROM activity_members WHERE activity_id = ?')
+    .all(activityId).map((row) => row.user_id));
+  notify.add(activity.owner_id);
+  notify.delete(req.user.id);
+  const notice = `La actividad "${activity.title}" fue eliminada.`;
   db.transaction(() => {
     db.prepare('DELETE FROM activity_members WHERE activity_id = ?').run(activityId);
     db.prepare('DELETE FROM activities WHERE id = ?').run(activityId);
+    const insert = db.prepare("INSERT INTO notifications (user_id, type, message, created_at) VALUES (?, 'activity', ?, ?)");
+    for (const userId of notify) insert.run(userId, notice, now());
   })();
+  for (const userId of notify) io.to(userRoom(userId)).emit('notification:new', { type: 'activity' });
   searchService.removeRecord('activity', activityId);
   await invalidateFeedCache();
 
@@ -1213,6 +1237,21 @@ app.get('/api/notifications', requireAuth, (req, res) => {
   res.json({ notifications: notifications.map(serializeNotification), unreadNotifications });
 });
 
+// HTTP DELETE /api/notifications/:id (cada usuario borra solo las suyas)
+app.delete('/api/notifications/:id', requireAuth, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return validationError(res, 'ID de notificación no válido.');
+  const result = db.prepare('DELETE FROM notifications WHERE id = ? AND user_id = ?').run(id, req.user.id);
+  if (!result.changes) return res.status(404).json({ error: 'La notificación ya no existe.' });
+  res.json({ ok: true });
+});
+
+// HTTP DELETE /api/notifications (borrar todas las del usuario)
+app.delete('/api/notifications', requireAuth, (req, res) => {
+  const result = db.prepare('DELETE FROM notifications WHERE user_id = ?').run(req.user.id);
+  res.json({ ok: true, deleted: result.changes });
+});
+
 app.post('/api/notifications/read', requireAuth, (req, res) => {
   db.prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ?').run(req.user.id);
   res.json({ ok: true });
@@ -1236,10 +1275,12 @@ io.use((socket, next) => {
     const token = readSessionCookie(socket.handshake.headers.cookie);
     if (token) {
       const row = db.prepare(`
-        SELECT s.user_id FROM sessions s WHERE s.token_hash = ? AND s.expires_at > ?
+        SELECT s.user_id, u.role FROM sessions s JOIN users u ON u.id = s.user_id
+        WHERE s.token_hash = ? AND s.expires_at > ?
       `).get(hashToken(token), now());
       if (row) {
         socket.data.userId = row.user_id;
+        socket.data.isAdmin = row.role === 'admin';
         socket.join(userRoom(row.user_id));
       }
     }
@@ -1474,7 +1515,7 @@ app.get('/api/ml/predict', requireAuth, (req, res) => {
 });
 
 // --- Contacto con análisis de sentimiento (ML) ------------------------------------
-app.post('/api/contacto', requireAuth, contactRateLimit, moderateBody(['subject', 'message']), (req, res) => {
+app.post('/api/contacto', requireAuth, contactRateLimit, (req, res) => {
   const subject = cleanText(req.body && req.body.subject, 120);
   const message = cleanText(req.body && req.body.message, 1500);
   if (message.length < 10) return validationError(res, 'Escribe un mensaje de al menos 10 caracteres.');
@@ -1483,7 +1524,16 @@ app.post('/api/contacto', requireAuth, contactRateLimit, moderateBody(['subject'
     INSERT INTO contact_messages (user_id, subject, message, sentiment, probability, created_at)
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(req.user.id, subject, message, verdict ? verdict.label : null, verdict ? verdict.probability : null, now());
-  res.status(201).json({ ok: true, message: 'Mensaje enviado. ¡Gracias por escribirnos!' });
+
+  // Avisar a los administradores con una notificación
+  const admins = db.prepare("SELECT id FROM users WHERE role = 'admin' AND id <> ?").all(req.user.id);
+  const notice = `Nuevo mensaje de contacto de ${req.user.name}${subject ? `: ${subject}` : ''}`;
+  const insert = db.prepare("INSERT INTO notifications (user_id, type, message, created_at) VALUES (?, 'contact', ?, ?)");
+  for (const admin of admins) {
+    insert.run(admin.id, notice, now());
+    io.to(userRoom(admin.id)).emit('notification:new', { type: 'contact' });
+  }
+  res.status(201).json({ ok: true, message: 'Mensaje enviado al administrador. ¡Gracias por escribirnos!' });
 });
 
 // --- Administración ---------------------------------------------------------------
@@ -1594,7 +1644,11 @@ app.get('/api/admin/reportes', requireAdmin, (req, res) => {
     SELECT c.subject, c.message, c.sentiment, c.probability, c.created_at AS createdAt, u.name AS author
     FROM contact_messages c LEFT JOIN users u ON u.id = c.user_id
     ORDER BY c.created_at DESC LIMIT 50
-  `).all();
+  `).all().map((m) => {
+    const subject = maskText(m.subject);
+    const message = maskText(m.message);
+    return { ...m, subject, message, inapropiado: hasMarked(subject) || hasMarked(message) };
+  });
   res.json({ summary, porDia, mensajes });
 });
 
@@ -1688,7 +1742,7 @@ io.on('connection', (socket) => {
       LIMIT 40
     `).all().reverse().map((m) => ({ ...m, t: maskText(m.t) }));
 
-    socket.emit('chat:history', history);
+    socket.emit('chat:history', socket.data.isAdmin ? history : censorPayload(history));
   });
 
   socket.on('chat:send', async (data) => {

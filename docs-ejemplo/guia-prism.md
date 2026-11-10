@@ -21,7 +21,7 @@ Es un chat general en tiempo real para todos los estudiantes conectados. Ves cu�
 Busca publicaciones y actividades por palabra clave. Puedes filtrar por "Publicaciones" o "Actividades". Desde los resultados puedes unirte a una actividad.
 
 ## Asistente IA
-PRISM Bot responde preguntas sobre la universidad, sobre las actividades disponibles, sobre cómo usar PRISM y sobre tipo de cambio. Recuerda tus intereses para darte respuestas más útiles. Debajo de cada respuesta puedes marcar "Me sirvió" o "No me sirvió": con eso el asistente aprende qué respuestas son buenas.
+PRISM Bot responde preguntas sobre la universidad, sobre las actividades disponibles, sobre cómo usar PRISM y sobre el clima del campus. Recuerda tus intereses para darte respuestas más útiles. Debajo de cada respuesta puedes marcar "Me sirvió" o "No me sirvió": con eso el asistente aprende qué respuestas son buenas.
 
 ## Clima del campus
 En la portada de Inicio y en la barra superior aparece el clima de Arequipa en vivo (temperatura, radiación UV, viento y lluvia). El Asistente IA usa ese clima para recomendarte actividades: si va a llover o hace mucho viento te sugiere planes bajo techo, y si el día está agradable, actividades al aire libre.
