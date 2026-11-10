@@ -657,7 +657,7 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'same-origin');
   res.setHeader('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: blob: https://images.unsplash.com https://*.unsplash.com https://i.pravatar.cc; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://cdn.socket.io; connect-src 'self' ws: wss: https://api.open-meteo.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: blob: https://images.unsplash.com https://*.unsplash.com https://i.pravatar.cc https://api.mapbox.com https://*.tiles.mapbox.com; style-src 'self' 'unsafe-inline' https://api.mapbox.com; script-src 'self' 'unsafe-inline' https://cdn.socket.io https://api.mapbox.com; worker-src 'self' blob:; child-src 'self' blob:; connect-src 'self' ws: wss: https://api.open-meteo.com https://api.mapbox.com https://*.tiles.mapbox.com https://events.mapbox.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'");
   if (IS_PRODUCTION) res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   next();
 });
@@ -778,6 +778,10 @@ app.post('/api/redis/clear', requireAuth, asyncRoute(async (req, res) => {
 app.get('/api/me', (req, res) => {
   const user = currentUser(req);
   res.json({ user: user ? publicUser(user) : null });
+});
+
+app.get('/api/config/mapbox', (req, res) => {
+  res.json({ token: process.env.MAPBOX_TOKEN || '' });
 });
 
 app.post('/api/auth/register', authRateLimit, asyncRoute(async (req, res) => {

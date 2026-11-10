@@ -1,4 +1,4 @@
-const CACHE = 'prism-v42-censura-admin-movil';
+const CACHE = 'prism-v43-mapbox-activities';
 const ASSETS = [
   './',
   './index.html',
@@ -30,6 +30,9 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
+
+  // No interceptar peticiones a otros orígenes (Mapbox, CDNs, Open-Meteo, etc.)
+  if (url.origin !== location.origin) return;
 
   // Never cache API responses or socket.io
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/socket.io/')) return;

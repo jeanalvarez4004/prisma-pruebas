@@ -567,7 +567,7 @@
 
     // Intento 2: Consulta directa desde el navegador a Open-Meteo (CORS abierto y gratuito)
     try {
-      const omUrl = 'https://api.open-meteo.com/v1/forecast?latitude=-16.399&longitude=-71.5375'
+      const omUrl = 'https://api.open-meteo.com/v1/forecast?latitude=-16.4232&longitude=-71.5219'
         + '&daily=temperature_2m_max,temperature_2m_min,uv_index_max,uv_index_clear_sky_max,moon_phase'
         + '&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,rain'
         + '&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m'
